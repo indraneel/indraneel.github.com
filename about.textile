@@ -1,0 +1,16 @@
+---
+layout: default
+title: about
+---
+<h2 id="intro">"Allow me to reintroduce myself…"</h2>
+
+<div class="post">
+h2. My name is
+
+Indraneel Purohit. I am currently a student at "Rutgers University":http://www.rutgers.edu, majoring in Computer Science, but studying many things.  I am an aspiring entrepreneur, and I intend on programming, thinking, hustling, speaking, listening and learning my way down such a path.  In my spare time, I enjoy making hip-hop music ("Listen!":http://www.soundcloud.com/indraneel), taking pictures ("Look!":http://www.flickr.com/indraneel24), in addition to more passive pursuits, like reading books and watching television and films.
+
+h2. This Site
+
+After years of training myself in the arts of the internet, I created this site to share (what I believe to be) the highest quality writing I have ever been capable of producing.  I will write about technology, music, world events, photography, and much more.  Think _New York Times_, but I'm only 18 and much less prolific.
+
+</div>

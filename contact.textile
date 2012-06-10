@@ -1,0 +1,11 @@
+---
+layout: default
+title: contact
+---
+<h2 id="intro">"Allow me to reintroduce myself…"</h2>
+
+<div class="post">
+h2. You can contact me
+
+via "Email!":mailto:indraneelpurohit@gmail.com 
+</div>
