@@ -1,6 +1,0 @@
-layout: post
-title: "Hello World"
-
-{{ page.title }}
-
-h1. Hi everybody!
