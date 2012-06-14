@@ -2,10 +2,7 @@
 layout: default
 title: contact
 ---
-<h2 id="intro">Contact</h2>
-
-<div class="post">
-h2. Interested in speaking to me? Cool!
+<h2 id="intro">Interested in speaking to me? Cool!</h2>
 
 Get in touch via "email":mailto:indraneelpurohit@gmail.com, or "twitter":http://www.twitter.com/indraneel24.
 </div>
