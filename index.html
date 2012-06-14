@@ -1,5 +1,6 @@
 ---
 layout: default
+title: home
 ---
 
 <!DOCTYPE html>
@@ -12,7 +13,7 @@ layout: default
     <link href="/favicon.ico" rel="shortcut icon" type="image/x-icon" />
     <link href="/css/screen.css" media="screen, projection" rel="stylesheet" type="text/css" />
     <link rel="alternate" type="application/atom+xml" title="Indraneel Purohit - Atom" href="/atom.xml" />
-    <title>indraneel.com</title>
+    <title>indraneelpurohit.com</title>
     <script type="text/javascript">
   var _gaq = _gaq || [];
   _gaq.push(['_setAccount', 'UA-18477555-1']);
@@ -31,13 +32,12 @@ layout: default
 
     </header>
     <div id="wrapper">
-      <h2 id="intro">Five recent posts. The <a href="/archive.html">archive</a> has the rest.</h2>
+      <h2 id="intro">Here are five recent posts. The <a href="/archive.html">archive</a> has the rest.</h2>
 
 {% for post in site.posts limit:5 %}
 <h2>
-    <a href="{{ post.url }}" rel="bookmark" title="Permanent link to ">{{ post.title }}</a>
-</h2>
-<span>{{ post.date | date: '%B' }} {{ post.date | date: '%e' }}, {{ post.date | date: '%Y' }}</span>
+    <a href="{{ post.url }}" rel="bookmark" title="Permanent link to "><div class="postdate">This post is from {{ post.date | date: '%B' }} {{ post.date | date: '%e' }}, {{ post.date | date: '%Y' }}</div></a>
+  </h2>
 <div class="post">
 <p>
     {{ post.content }}
