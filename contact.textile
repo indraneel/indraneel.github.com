@@ -2,10 +2,10 @@
 layout: default
 title: contact
 ---
-<h2 id="intro">"Allow me to reintroduce myself…"</h2>
+<h2 id="intro">Contact</h2>
 
 <div class="post">
-h2. You can contact me
+h2. Interested in speaking to me? Cool!
 
-via "Email!":mailto:indraneelpurohit@gmail.com 
+Get in touch via "email":mailto:indraneelpurohit@gmail.com, or "twitter":http://www.twitter.com/indraneel24.
 </div>
