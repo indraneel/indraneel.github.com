@@ -130,6 +130,13 @@ header, footer, nav, article { display: block; }
 }
 
 /* ids */
+#blurb {
+  text-align: justify;
+  font-size:12pt;
+  line-height: 20px;
+  margin-bottom: 10px;
+}
+
 #cse-search-box {
   margin-top: 10px;
 }

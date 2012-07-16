@@ -7,11 +7,11 @@ title: about
 <div class="post">
 h2. My name is
 
-Indraneel Purohit. I am currently a student at "Rutgers University":http://www.rutgers.edu, majoring in Computer Science, but studying many things.  I am an aspiring entrepreneur, and I intend on programming, thinking, hustling, speaking, listening and learning my way down such a path.  In my spare time, I enjoy making hip-hop music ("Listen!":http://www.soundcloud.com/indraneel), taking pictures ("Look!":http://www.flickr.com/indraneel24), in addition to more passive pursuits, like "listening to music":http://www.last.fm/user/indraneel24, reading books and watching television and films.
+Indraneel Purohit. I am currently a student at "Rutgers University":http://www.rutgers.edu, majoring in Computer Science.  But I enjoy studying many things, doing more things, and reading about many more things.  I am an aspiring entrepreneur and leader, and I want to use my ever-growing skills in software development, public speaking and listening to fulfill my goals.  In my spare time, I enjoy ("making hip-hop music":http://www.soundcloud.com/indraneel), ("taking pictures":http://www.flickr.com/indraneel24), in addition to more passive pursuits, like "listening to music":http://www.last.fm/user/indraneel24, reading books and watching television and films.
 
 h2. This Site
 
-After years of training myself in the art of the internet, I created this site to share (what I believe to be) the highest quality writing I have ever been capable of producing.  I will write about technology, music, world events, photography, and much more.
+I'm probably going to write about technology, music, world events, photography, mainly, but I don't plan on limiting myself to any of those.
 
 h2. "Get in touch!":/contact.html
 </div>
