@@ -7,7 +7,7 @@
 body {
   background-color: #FFFFFF;
   color: #444;
-  font-family: ‘Palatino Linotype’, ‘Book Antiqua’, Palatino, serif;
+  font-family: 'Droid Serif', ‘Palatino Linotype’, ‘Book Antiqua’, Palatino, serif;
   line-height: 1.4em;
   margin: 20px auto 18px 15%;
 }
@@ -78,6 +78,10 @@ ul { list-style-type: square; }
 header, footer, nav, article { display: block; }
 
 /* classes */
+.soon {
+  color:000000;
+}
+
 .posttitle{
   float: left;
   /*margin-right: 100px;*/
