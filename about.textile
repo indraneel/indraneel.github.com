@@ -2,12 +2,12 @@
 layout: default
 title: about
 ---
-<h2 id="intro">"Allow me to reintroduce myself…"</h2>
+<h2 id="intro">""Allow me to reintroduce myself, my name is…"":http://www.youtube.com/watch?v=eAbxCTABfis#t=0m4.6s</h2>
 
 <div class="post">
-h2. My name is
+h2. Indraneel Purohit
 
-Indraneel Purohit. I am currently a student at "Rutgers University":http://www.rutgers.edu, majoring in Computer Science.  But I enjoy studying many things, doing more things, and reading about many more things.  I am an aspiring entrepreneur and leader, and I want to use my ever-growing skills in software development, public speaking and listening to fulfill my goals.  In my spare time, I enjoy "making hip-hop music":http://www.soundcloud.com/indraneel, "taking pictures":http://www.flickr.com/indraneel24, in addition to more passive pursuits, like "listening to music":http://www.last.fm/user/indraneel24, reading books and watching television and films.
+I am currently a student at "Rutgers University":http://www.rutgers.edu, majoring in Computer Science.  But I enjoy studying many other things, doing even more things, and reading about many more things.  I am an aspiring entrepreneur and leader, and I want to use my ever-growing skills in software development, public speaking and listening to fulfill my goals.  In my spare time, I enjoy "making hip-hop music":http://www.soundcloud.com/indraneel, "taking pictures":http://www.flickr.com/indraneel24, in addition to more passive pursuits, like "listening to music":http://www.last.fm/user/indraneel24, reading books and watching television and films.
 
 h2. This Site
 
