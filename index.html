@@ -30,25 +30,27 @@ title: home
   <body>
     <header>
       <div id="blurb">
-        <p>Hi! I'm Indraneel. I'm a rising sophomore at Rutgers University, studying Computer Science.  I love devouring information about programming, entrepreneuship, hip-hop music, global issues, sports, and history.</p>
-
-        <p>I plan on sharing what I have learned here, as well as chronciling my experiences, past and present.</p>
+        <p>Hi! I'm Indraneel. I'm a sophomore at Rutgers University, studying Computer Science.  I love programming, entrepreneuship, hip-hop, photography, sports, history & current events.</p>
     </div>
     </header>
     <div id="wrapper">
-      <h2 id="intro">Here are five recent posts. The <a href="/archive.html">archive</a> has the rest.</h2>
-
-{% for post in site.posts limit:5 %}
-<h2>
-    <a href="{{ post.url }}" rel="bookmark" title="Permanent link to "><div class="postdate">This post is from {{ post.date | date: '%B' }} {{ post.date | date: '%e' }}, {{ post.date | date: '%Y' }}</div></a>
-  </h2>
-<div class="post">
-<p>
-    {{ post.content }}
-</p>
-</div>
-{% endfor %}
-    
+      <h2>Here are the things I've written.</h2>
+      <div class="post">
+      <ul>
+        {% for post in site.posts limit:5 %}
+        <li>
+            <span class="date">
+              <span class="day">{{ post.date | date: '%d' }}</span>
+              <span class="month"><abbr>{{ post.date | date: '%b' }}</abbr></span>
+              <span class="year">{{ post.date | date: '%Y' }}</span>
+            </span>—
+          <a href="{{ post.url }}" title="{{ post.title }}">
+            <span class="title">{{ post.title }}</span>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+      </div>    
     </div>
   </body>
 </html>

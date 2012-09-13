@@ -13,5 +13,6 @@ h2. This Site
 
 I'm probably going to write about technology, music, world events, photography, mainly, but I don't plan on limiting myself to any of those.
 
-h2. "Get in touch!":/contact.html
+h2. Get in touch via "email":mailto:indraneelpurohit@gmail.com or "twitter":http://www.twitter.com/indraneel24!
+
 </div>
