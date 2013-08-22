@@ -4,6 +4,8 @@ title: about
 ---
 <h2 id="intro">""Allow me to reintroduce myself, my name is…"":http://www.youtube.com/watch?v=eAbxCTABfis#t=0m4.6s</h2>
 
+<img src="https://sphotos-a.xx.fbcdn.net/hphotos-ash3/524562_10150931317016986_150425484_n.jpg" width="720"></img>
+
 <div class="post">
 h2. Indraneel Purohit
 
