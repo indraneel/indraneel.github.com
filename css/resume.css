@@ -126,26 +126,77 @@ footer {
 }
 
 @media print {
+
+  body {
+    color: #000;
+    background: #fff;
+  }
+
+  section {
+    page-break-inside: avoid;
+    page-break-after: avoid;
+  }
+
+  ul {
+    page-break-before: avoid;
+    page-break-after: avoid;
+  }
+
+  a {
+    color: #000;
+    font-weight: bolder;
+    text-decoration: none;
+  }
+
+  .hide-on-print {
+    display: none;
+  }
+
+  .resume {
+    width: 800px;
+    margin: 0 auto;
+  }
+
   * {
     font-size: 12px;
   }
 
   #name {
-    font-size: 18px;
+    font-size: 36px;
   }
-
-  .left-title {
-    font-size: 12px;
-    font-weight: bold;
-  }
-  .section-divider {
-    color: #000000;
-    background-color: #FFFFFF;
+  
+  .resume-section {
     margin: 0;
   }
 
-  .section-title {
+  .resume-section > * {
+    font-size: 12px;
+  }
+
+  .info-list {
+    padding: 0px;
+    margin: 0px;
+    page-break-before: avoid;
+    page-break-after: avoid;
+  }
+
+  .info-list > * {
+    font-size: 12px;
+  }
+
+  .left-title {
     font-size: 14px;
+  }
+  
+  .section-divider {
+    background-color: #FFFFFF;
+    color: #000000;
+    margin: 0;
+    border-bottom: 1px solid #000;
+  }
+
+  .section-title {
+    font-size: 20px;
     padding-left: 0px;
   }
 
