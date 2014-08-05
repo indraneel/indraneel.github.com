@@ -1,0 +1,125 @@
+a:link {
+  color: #374977;
+}
+
+a:hover {
+  color: #303015;
+}
+a:active {
+  color: #003006;
+}
+
+.bold {
+  font-weight: bold;
+}
+
+.clearfix:after {
+    clear:both;
+    content:".";
+    display:block;
+    font-size:0;
+    height:0;
+    visibility:hidden;
+}
+
+.clearfix {
+  display:block;
+}
+
+.resume {
+  width: 100%;
+  margin: 0 auto;
+}
+
+#name {
+  font-size: 36px;
+}
+
+#contact-info {
+  padding-top: 9px;
+}
+
+.resume-section {
+  margin-top: 20px;
+  min-height: 50px;
+  width: 100%;
+}
+
+.section-divider {
+  background-color: #374977;
+  color: #fced16;
+  margin-bottom: 20px;
+}
+
+.section-title {
+  font-size: 30px;
+  padding-left: 5px;
+}
+
+.row {
+  margin: 10px 0px;
+}
+
+.info-list {
+  padding: 0;
+  margin: 0;
+  list-style-type: none;
+}
+
+.info-list > li {
+  margin-top: 5px;
+}
+
+.left-title {
+  font-size: 25px;
+}
+
+.left-detail {
+  font-size: 18px;
+}
+
+.left-sub-detail {
+  font-size: 15px;
+  font-style: italic;
+}
+
+.right-detail {
+  text-align: left;
+  margin-top: 5px;
+}
+
+.right-column {
+  padding: 0;
+  margin-left: 0px;
+}
+
+ul .right-column {
+  margin-top: 0px;
+}
+
+.notabene {
+  color: red;
+}
+
+footer {
+  min-height: 30px;
+  background-color: #374977;
+}
+
+@media screen and (min-width: 48em) {
+  
+  #name {
+    font-size: 48px;
+  }
+
+  .resume {
+    width: 961px;
+    margin: 0 auto;
+  }
+
+
+  .right-detail {
+    text-align: justify;
+    /*overflow: auto;*/
+  }
+}
