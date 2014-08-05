@@ -95,6 +95,7 @@ a:active {
 
 ul .right-column {
   margin-top: 0px;
+  list-style-type: none;
 }
 
 .notabene {
@@ -122,4 +123,30 @@ footer {
     text-align: justify;
     /*overflow: auto;*/
   }
+}
+
+@media print {
+  * {
+    font-size: 12px;
+  }
+
+  #name {
+    font-size: 18px;
+  }
+
+  .left-title {
+    font-size: 12px;
+    font-weight: bold;
+  }
+  .section-divider {
+    color: #000000;
+    background-color: #FFFFFF;
+    margin: 0;
+  }
+
+  .section-title {
+    font-size: 14px;
+    padding-left: 0px;
+  }
+
 }
