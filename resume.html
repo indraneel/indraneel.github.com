@@ -3,7 +3,12 @@
 	<head>
 		<meta name="viewport" content="width=device-width, user-scalable=no">
 		<link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.5.0/pure-min.css">
-		<link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.5.0/grids-responsive-min.css">
+		<!--[if lte IE 8]>
+	    	<link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.5.0/grids-responsive-old-ie-min.css">
+		<![endif]-->
+		<!--[if gt IE 8]><!-->
+		    <link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.5.0/grids-responsive-min.css">
+		<!--<![endif]-->
 		<link rel="stylesheet" href="./css/resume.css">
 		<link rel="stylesheet" href="./css/print.css">
 	</head>
@@ -11,18 +16,16 @@
 		<div class="pure-g resume">
 			<!--Header-->
 			<section class="resume-section">
-				<div class="pure-u-md-2-5 pure-u-print-2-5 pure-u-1">
+				<div class="pure-u-md-2-5 pure-u-1">
 					<article id="name">
 						Indraneel Purohit
 					</article>
 				</div>
 
-				<div class="pure-u-md-3-5 pure-u-print-3-5 pure-u-1">
+				<div class="pure-u-md-3-5 pure-u-1">
 					<article class="pure-g" id="contact-info">
-						<a class="pure-u-md-1-2 pure-u-print-1-2 pure-u-1" href="mailto:indraneelpurohit@gmail.com">indraneelpurohit@gmail.com</a>
-						<span class="pure-u-md-1-2 pure-u-print-1-2  pure-u-1">732-618-4357</span>
-						<a class="pure-u-md-1-2 pure-u-print-1-2  pure-u-1" href="http://indraneelpurohit.com">indraneelpurohit.com</a></td>
-						<a class="pure-u-md-1-2 pure-u-print-1-2 pure-u-1" href="http://github.com/indraneel">github.com/indraneel</a>
+						<a class="pure-u-md-1-2 pure-u-1" href="mailto:indraneelpurohit@gmail.com">indraneelpurohit@gmail.com</a>
+						<a class="pure-u-md-1-2 pure-u-1" href="http://github.com/indraneel">github.com/indraneel</a>
 					</article>
 				</div>
 			</section>
@@ -32,214 +35,215 @@
 				<div class="pure-u-1 section-divider">
 					<span class="section-title">Education</span>
 				</div>
-				<ul class="info-list pure-u-md-2-5 pure-u-print-2-5 pure-u-1">
+				<ul class="info-list pure-u-md-2-5 pure-u-1">
 					<li class="left-title bold">Rutgers University</li>
-					<li class="left-detail">BS, Computer Science</li>
 					<li class="left-detail">Class of 2015</li>
-					<li class="left-sub-detail">Minors: Math, Political Science</li>
+					<li class="left-detail">BS, Computer Science</li>
+					<li class="left-sub-detail">Minor: Political Science</li>
 					<li class="left-sub-detail"><a href="http://admissions.rutgers.edu/costs/scholarships/firstyearscholarships.aspx#MsoTableGrid">James Dickson Carr Scholar</a></li>
 				</ul>
-				<ul class="info-list pure-u-md-3-5 pure-u-print-3-5 pure-u-1">
+				<ul class="info-list pure-u-md-3-5 pure-u-1">
 					<li class="right-detail"><span class="bold">GPA:</span> 3.5</li>
-					<li class="right-detail"><span class="bold">Courses:</span>
+					<li class="right-detail"><span class="bold">Courses of note:</span>
 						<div class="right-grid pure-g" >
-							<ul class="right-column pure-u-md-1-4 pure-u-print-1-4  pure-u-1-2">
+							<ul class="right-column pure-u-md-1-3 pure-u-1-2">
 								<li>Data Structures</li>
-								<li>Discrete Math</li>
 								<li>Computer Architecture</li>
-								<li>Math Reasoning</li>
-							</ul>
-							<ul class="right-column pure-u-md-1-4 pure-u-print-1-4 pure-u-1-2">
-								<li>Multivariable Calculus</li>
-								<li>Linear Algebra</li>
-								<li>Programming Languages</li>
-								<li>Probability</li>
-							</ul>
-							<ul class="right-column pure-u-md-1-4 pure-u-print-1-4 pure-u-1-2">	
 								<li>Software Methodology</li>
 								<li>Systems Programming</li>
+							</ul>
+							<ul class="right-column pure-u-md-1-3 pure-u-1-2">
+								<li>Math Reasoning</li>
+								<li>Probability</li>
+								<li>Programming Langs.</li>
+								<li>Distributed Systems</li>
+							</ul>
+							<ul class="right-column pure-u-md-1-3 pure-u-1-2">
 								<li>Data Science</li>
 								<li>Algorithms</li>
-							</ul>
-							<ul class="right-column pure-u-md-1-4 pure-u-print-1-4 pure-u-1-2">
-								<li>Grad. Algorithms 1</li>
-								<li>Distr. Systems</li>
-								<li>Compilers <span class="notabene" title="Current Course" >*</span></li>
-								<li>Grad. Bioinformatics <span class="notabene" title="Current Course" >*</span></li>
+								<li>Grad. Algorithms</li>
+								<li>Political Campaigning</li>
+								<li>Political Science Research</li>
 							</ul>
 						</div>
 					</li>
 				</ul>
 			</section>
-			
+
 			<!--Experience-->
 			<section class="resume-section">
 				<div class="pure-u-1 section-divider">
 					<span class="section-title">Experience</span>
 				</div>
-				<ul class="info-list pure-u-md-2-5 pure-u-print-2-5 pure-u-1">
-					<li class="left-title bold"><a href="http://yahoo.com">Yahoo!</a>
+				<ul class="info-list pure-u-md-2-5 pure-u-1">
+					<li class="left-title"><a href="https://appnexus.com">AppNexus</a>
+					</li>
+					<li class="left-detail">Software Engineer
+					</li>
+					<li class="left-detail">July 2015 - Present
+					</li>
+					<li class="left-sub-detail">ES6/React/Redux/Node, Java/Play, JIRA
+					</li>
+				</ul>
+				<div class="pure-u-md-3-5 pure-u-1">
+					<section class="right-detail">Frontend/backend engineering on advertiser-side of AppNexus. Major projects include: built new ad manager single page app, rewrote VAST validator API, built/integrated new ad preview system APIs.</section>
+					<section class="right-detail">Team project manager, ran scrum meetings/managed backlog, wrote customer-facing documentation.</section>
+				</div>
+				<hr />
+				<ul class="info-list pure-u-md-2-5 pure-u-1">
+					<li class="left-title"><a href="http://yahoo.com">Yahoo!</a>
 					</li>
 					<li class="left-detail">Technical Intern
 					</li>
 					<li class="left-detail">Summer 2014
 					</li>
-					<li class="left-sub-detail">JavaScript, Ember JS, Java, Spring
+					<li class="left-sub-detail">JavaScript/Ember JS, Java/Spring
 					</li>
 				</ul>
-				<div class="pure-u-md-3-5 pure-u-print-3-5 pure-u-1">
-					<section class="right-detail">Member of Ads & Data team.</section>
-					<section class="right-detail">Worked as a full member of a team on an internal tool to help sales and media solutions teams sell 30% more ad sponsorships, with a goal of growing 180MM business by 2-3x.</section>
-					<section class="right-detail">Built out discovery and booking features in web app using Ember (JS) and Spring (Java) frameworks.</section>
+				<div class="pure-u-md-3-5 pure-u-1">
+					<section class="right-detail">Member of Ads & Data team. Worked as member of a team on an internal tool called Sponsorfront, helped sales team sell 30% more full-page sponsorships.</section>
 				</div>
-
-				<ul class="info-list pure-u-md-2-5 pure-u-print-2-5 pure-u-1">
-					<li class="left-title bold"><a href="http://oss.rutgers.edu">Rutgers Open Systems Solutions</a>
+				<hr />
+				<ul class="info-list pure-u-md-2-5 pure-u-1">
+					<li class="left-title"><a href="http://oss.rutgers.edu">Rutgers Open Systems Solutions</a>
 					</li>
 					<li class="left-detail">Student Systems Programmer
 					</li>
-					<li class="left-detail">March 2013-Present
+					<li class="left-detail">March 2013 - May 2015
 					</li>
-					<li class="left-sub-detail">*nix, HTML/CSS, JavaScript, Python, Objective-C
+					<li class="left-sub-detail">*nix, HTML/CSS, JavaScript, Python, Product Design
 					</li>
 				</ul>
-				<div class="pure-u-md-3-5 pure-u-print-3-5 pure-u-1">
+				<div class="pure-u-md-3-5 pure-u-1">
 					<section class="right-detail">Building websites, web applications, performing maintenance, building RPMs and system administration for an enterprise-level computing environment.</section>
-					<section class="right-detail">Onboarded new hires, focusing on web development.</section>
-					<section class="right-detail">Onboarded summer interns working on the <a href="http://github.com/rutgersmobile/">Rutgers mobile application</a>, helped transition between developers, delineated features requirements, and facilitated communication between designer and interns.</section>
+					<section class="right-detail">Worked on initial product design for the <a href="http://github.com/rutgersmobile/">Rutgers mobile application</a>.</section>
 				</div>
-
-				<ul class="info-list pure-u-md-2-5 pure-u-print-2-5 pure-u-1">
-					<li class="left-title bold"><a href="http://saavn.com">Saavn</a>
+<hr />
+				<ul class="info-list pure-u-md-2-5 pure-u-1">
+					<li class="left-title"><a href="http://saavn.com">Saavn</a>
 					</li>
 					<li class="left-detail">Engineering Intern
 					</li>
 					<li class="left-detail">Summer 2013
 					</li>
-					<li class="left-sub-detail">JavaScript, PHP
+					<li class="left-sub-detail">JavaScript
 					</li>
 				</ul>
-				<div class="pure-u-md-3-5 pure-u-print-3-5 pure-u-1">
-					<section class="right-detail">Built Saavn Match, a prototype of a tool designed to port user playlists into the service, and improve user retention.</section>
+				<div class="pure-u-md-3-5 pure-u-1">
+					<section class="right-detail">Built Saavn Match, a prototype of a tool designed to port user playlists into the service, to improve user retention.</section>
 				</div>
-
-				<ul class="info-list pure-u-md-2-5 pure-u-print-2-5 pure-u-1">
-					<li class="left-title bold"><a href="http://ebpl.org">East Brunswick Public Library</a>
+<hr />
+				<!-- <ul class="info-list pure-u-md-2-5 pure-u-1">
+					<li class="left-title"><a href="http://ebpl.org">East Brunswick Public Library</a>
 					</li>
-					<li class="left-detail">Web Developer
+					<li class="left-detail">Summer Intern
 					</li>
 					<li class="left-detail">Summer 2012
 					</li>
-					<li class="left-sub-detail">ColdFusion, HTML/CSS, JavaScript, PHP
+					<li class="left-sub-detail">PHP, Coldfusion
 					</li>
 				</ul>
-				<div class="pure-u-md-3-5 pure-u-print-3-5 pure-u-1">
-					<section class="right-detail">Added payments support via Paypal for classes & donations to existing website.</section>
-				</div>
-				
-				<ul class="info-list pure-u-md-2-5 pure-u-print-2-5 pure-u-1">
-					<li class="left-title bold"><a href="http://www.technologytell.com/gadgets/author/indraneel-purohit/">Gadgetell</a>
+				<div class="pure-u-md-3-5 pure-u-1">
+					<section class="right-detail">Added support for Paypal payments and donations on library website.</section>
+				</div> -->
+
+				<ul class="info-list pure-u-md-2-5 pure-u-1">
+					<li class="left-title"><a href="http://www.technologytell.com/gadgets/">Gadgetell</a>
 					</li>
-					<li class="left-detail">Columnist
+					<li class="left-detail">Contributor
 					</li>
 					<li class="left-detail">April 2007-September 2010
 					</li>
 				</ul>
-				<div class="pure-u-md-3-5 pure-u-print-3-5 pure-u-1">
-					<section class="right-detail">Reviewed products and covered consumer technology for an audience of 200,000 monthly readers.</section>
+				<div class="pure-u-md-3-5 pure-u-1">
+					<section class="right-detail">Wrote articles on technology news and reviewed products for an audience of 200,000 monthly readers.</section>
 				</div>
 			</section>
 
-			<!--Projects-->
+			<!-- projects
 			<section class="resume-section">
 				<div class="pure-u-1 section-divider">
 					<span class="section-title">Projects</span>
 				</div>
-				<ul class="info-list pure-u-md-2-5 pure-u-print-1-2 pure-u-1">
-					<li class="left-title bold"><a href="http://nhsjs.com">National High School Journal of Science</a></li>
-					<li class="left-detail"><a href="http://github.com/nhsjs">http://github.com/nhsjs</a></li>
+
+				<ul class="info-list pure-u-md-2-5 pure-u-1">
+					<li class="left-title"><a href="http://www.nhsjs.com">IDIA</a>
+					</li>
 				</ul>
-				<div class="pure-u-md-3-5 hide-on-print pure-u-1">
-					<section class="right-detail">The National High School Journal of Science (NHSJS) is a student-run and peer-reviewed research journal that is targeted towards high school students.</section>
-					<section class="right-detail">Creating a web application that allows research papers to be annotated with discussion threads.</section>
+
+				<div class="info-list pure-u-md-3-5 pure-u-1">
+				<section class="right-detail">Wrote articles on technology news and reviewed products for an audience of 200,000 monthly readers.</section>
 				</div>
-				<ul class="info-list pure-u-md-2-5 pure-u-print-1-2 pure-u-1">
-					<li class="left-title bold"><a href="http://idia.net">IDIA</a></li>
-					<li class="left-detail"><a href="http://107.170.5.17:5000">IDIA Conference Data</a></li>
-				</ul>
-				<div class="pure-u-md-3-5 hide-on-print pure-u-1">
-					<section class="right-detail">The Institute for Domestic and International Affairs (IDIA) is a 501c3 that provides premier programming in civic education for teachers and students.</section>
-					<section class="right-detail">Created a web app that organizes conference registration data, and allows recruiting to be more data-driven.</section>
-				</div>
-<!-- 			</section>
- -->
+
+			</section> -->
+
 
 			<!--hackathon Projects-->
-	<!-- 		<section class="resume-section">
+<!-- 			<section class="resume-section">
 				<div class="pure-u-1 section-divider">
 					<span class="section-title">Hackathon Projects</span>
-				</div> -->
-				<ul class="info-list pure-u-md-1-3 pure-u-print-1-3 pure-u-1">
-					<li class="left-title"><a href="https://github.com/indraneel/SIRS">SIRS</a>
-					</li>
-					<li class="left-sub-detail">Linear regression analysis on professor evaluation data
-					</li>
-					<li class="left-sub-detail">Python, numpy
-					</li>
-				</ul>
-				<ul class="info-list pure-u-md-1-3 pure-u-print-1-3 pure-u-1">
+				</div>
+				<ul class="info-list pure-u-md-1-3 pure-u-1">
 					<li class="left-title"><a href="https://github.com/robertf224/vinelist">Vinelist</a>
 					</li>
-					<li class="left-sub-detail">Playlist creator for Vine videos
+					<li class="left-sub-detail">3rd place, hackNY fall 2013
 					</li>
 					<li class="left-sub-detail">nodejs, Angular JS, MongoDB
 					</li>
 				</ul>
-				<ul class="info-list pure-u-md-1-3 pure-u-print-1-3 pure-u-1">
+				<ul class="info-list pure-u-md-1-3 pure-u-1">
 					<li class="left-title"><a href="http://github.com/indraneel/getgoing">/GET/Going</a>
 					</li>
-					<li class="left-sub-detail">Tells you when you leave to catch a Rutgers bus
+					<li class="left-sub-detail">Best Mobile Hack, Hack RU fall 2012
 					</li>
 					<li class="left-sub-detail">nodejs, Angular JS, MongoDB
+					</li>
+				</ul>
+				<ul class="info-list pure-u-md-1-3 pure-u-1">
+					<li class="left-title"><a href="http://github.com/indraneel/Punch-Card">Punch Card Love</a>
+					</li>
+					<li class="left-sub-detail">Best Twilio Hack, hackNY spring 2013
+					</li>
+					<li class="left-sub-detail">Arduino, JS, Python, Processing
 					</li>
 				</ul>
 			</section>
-			
+ -->
 			<!--Skills-->
 			<section class="resume-section">
 				<div class="pure-u-1 section-divider">
 					<span class="section-title">Skills</span>
 				</div>
-				<div class="pure-u-md-2-5 hide-on-print pure-u-1">
+<!-- 				<div class="pure-u-md-2-5 pure-u-1">
 					<div class="left-title">Technical
 				</div>
-
 				</div>
-				<div class="pure-u-md-3-5 pure-u-print-1-2 pure-u-1">
+ -->
+				<div class="pure-u-md-1-2 pure-u-1">
 					<section class="right-detail">
-						<span class="bold">Proficient:</span> JavaScript, HTML/CSS, Python, Java
+						<span class="bold">Proficient:</span> JavaScript/ES6, Python
 					</section>
 					<section class="right-detail">
-						<span class="bold">Familiar:</span> C, PHP, Objective-C
+						<span class="bold">Familiar:</span> Java, Swift
 					</section>
 					<section class="right-detail">
-						<span class="bold">Frameworks/Libraries:</span>, Ember JS, Flask, Spring, jQuery
+						<span class="bold">Frameworks/Libraries:</span> React, React Native, Redux, EmberJS, Flask, Play, Babel, Webpack, Gulp, LESS
 					</section>
 					<section class="right-detail">
-						<span class="bold">Tools:</span> Vim, Bash, Git
+						<span class="bold">Tools:</span> git, nginx, puppet, jenkins
 					</section>
 				</div>
-				<div class="pure-u-md-2-5 hide-on-print pure-u-1">
+<!-- 				<div class="pure-u-md-2-5 pure-u-1">
 					<div class="left-title">Other
 					</div>
 
-				</div>
-				<div class="pure-u-md-3-5 pure-u-print-1-2 pure-u-1">
+				</div> -->
+				<div class="pure-u-md-1-2 pure-u-1">
 					<section class="right-detail">
-						<span class="bold">Audio:</span> Audio Engineering, Music Production, Logic Pro
+						<span class="bold">Audio:</span> Logic Pro (engineering/production)
 					</section>
 					<section class="right-detail">
-						<span class="bold">Visual:</span> Adobe Photoshop, Adobe Illustrator, Adobe InDesign, Final Cut Pro
+						<span class="bold">Visual:</span> Adobe Photoshop/Illustrator/InDesign, Final Cut Pro
 					</section>
 				</div>
 			</section>
@@ -249,56 +253,53 @@
 				<div class="pure-u-1 section-divider">
 					<span class="section-title">Leadership</span>
 				</div>
-				<ul class="info-list pure-u-md-2-5 pure-u-print-1-4 pure-u-1">
-					<li class="left-title bold">Rutgers Model Congress
-					</li>
-					<li class="left-detail">Director of Administration
-					</li>
-					<li class="left-detail">Spring 2014-Present
-					</li>
-				</ul>
-				<div class="pure-u-md-3-5 hide-on-print pure-u-1">
-					<section class="right-detail">Responsible for staff selection, logistic, adminstrative and technical processes at Rutgers Model Congress 2015.</section>
-				</div>
 
-				<ul class="info-list pure-u-md-2-5 pure-u-print-1-4 pure-u-1">
-					<li class="left-title bold">Rutgers Music Producers
+				<ul class="info-list pure-u-md-1-4 pure-u-1">
+					<li class="left-title">Rutgers Model Congress
 					</li>
-					<li class="left-detail">Founder
-					</li>
-					<li class="left-detail">Spring 2014-Present
+					<li class="left-detail">Executive Staff, Spring 2014-Spring 2015
 					</li>
 				</ul>
-				<div class="pure-u-md-3-5 hide-on-print pure-u-1">
+<!-- 				<div class="pure-u-md-3-5 pure-u-1">
+					<section class="right-detail">Selected and developed a staff of 50. Led a team of 10 in all logistical, adminstrative and technical processes at Rutgers Model Congress 2015 - an annual 500-student conference.</section>
+				</div>
+ -->
+				<ul class="info-list pure-u-md-1-4 pure-u-1">
+					<li class="left-title">Rutgers Music Producers
+					</li>
+					<li class="left-detail">Founder, 2014
+					</li>
+				</ul>
+<!-- 				<div class="pure-u-md-3-5 pure-u-1">
 					<section class="right-detail">Created a student organization to federate and foster the community of Rutgers students interested in creating recorded music.</section>
 				</div>
-
-				<ul class="info-list pure-u-md-2-5 pure-u-print-1-4 pure-u-1">
-					<li class="left-title bold">Rutgers University
+ -->
+				<ul class="info-list pure-u-md-1-4 pure-u-1">
+					<li class="left-title">Rutgers University
 					</li>
 					<li class="left-detail">First Year Interest Group Seminar Instructor
 					</li>
 					<li class="left-detail">Fall 2013
 					</li>
 				</ul>
-				<div class="pure-u-md-3-5 hide-on-print pure-u-1">
+<!-- 				<div class="pure-u-md-3-5 pure-u-1">
 					<section class="right-detail">Taught a seminar for first year students entitled "Exploring Computer Science."</section>
 				</div>
-
-				<ul class="info-list pure-u-md-2-5 pure-u-print-1-4 pure-u-1">
-					<li class="left-title bold">Rutgers University
+ -->
+				<ul class="info-list pure-u-md-1-4 pure-u-1">
+					<li class="left-title">Rutgers University
 					</li>
 					<li class="left-detail">Teaching Assistant, Intro. to CS
 					</li>
 					<li class="left-detail">Fall 2012-Fall 2013
 					</li>
 				</ul>
-				<div class="pure-u-md-3-5 hide-on-print pure-u-1">
-					<section class="right-detail">Led a weekly recitation for Introduction to Computer Science. Answered questions, conducted code reviews and graded projects.</section>
+<!-- 				<div class="pure-u-md-3-5 pure-u-1">
+					<section class="right-detail">Lead a weekly recitation for Introduction to Computer Science. Answered questions, conducted code reviews and graded projects.</section>
 				</div>
-			</section>
+ -->			</section>
 
-			<section class="resume-section hide-on-print" ></section>
+			<section class="resume-section" ></section>
 		</div>
 	</body>
 </html>
