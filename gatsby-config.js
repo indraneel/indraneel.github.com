@@ -1,6 +1,7 @@
 module.exports = {
   siteMetadata: {
     title: `Indraneel Purohit`,
+    description: `Indraneel's site`,
     siteUrl: `http://indraneel.org/`,
     social: {
       twitter: `indraneel24`,
