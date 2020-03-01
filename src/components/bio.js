@@ -28,11 +28,17 @@ const Bio = () => {
     <div
       style={{
         display: `flex`,
-        marginBottom: rhythm(2.5),
+        flexDirection: `column`,
+        marginBottom: rhythm(1.5),
       }}
     >
       <div>
-        <a href={`https://twitter.com/${social.twitter}`}>
+        <a href={`https://github.com/indraneel`} target={`_blank`}>
+          github
+        </a>
+      </div>
+      <div>
+        <a href={`https://twitter.com/${social.twitter}`} target={`_blank`}>
           twitter
         </a>
       </div>
