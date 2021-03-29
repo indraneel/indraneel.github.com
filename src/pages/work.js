@@ -15,6 +15,7 @@ const NotFoundPage = ({ data, location }) => {
         <BioComponent />
         <h1>Work</h1>
         <article>
+            This list is in reverse chronological order. So far my career has gone from ad tech to non-profit tech (transit and elections, so far).
             <ul>
                 <li><a href="#pgp-site">Princeton Gerrymandering Project website (2020-now)</a></li>
                 <li><a href="#openprecincts">OpenPrecincts (2020-now)</a></li>
@@ -42,20 +43,19 @@ const NotFoundPage = ({ data, location }) => {
                     plus a separate Django app iframed/proxied in.
                     The team found it difficult for the site's content to be updated.
                     Going into the 2021 redistricting cycle, I knew the site would be important for the team + rotating cast of students to update 
-                    content behind static pages, interactive pieces, and any advanced SPA-like functionality we wanted to add.
+                    content behind static pages, interactive pieces, and any advanced application functionality we wanted to add.
                 </p>
                 <p>
                     I decided to redesign and rewrite the site as a new React app using Gatsby, which I deployed on Netlify. I led an undergrad to work an initial prototype, after which I took ownership.
                     I brought over the <a href="http://gerrymander.princeton.edu/tests">existing JSON-driven interactive page </a>
-                     as-is with no loss of functionality.
+                    without any loss of functionality.
                     To support an <a href="https://participant.com/campaigns/slaythedragon">marketing partnership</a>, I used Netlify Functions to deploy an RSS feed.
                     I sunset the Firebase- and Django-driven pages, replacing them with static Markdown and an Airtable integration respectively.
-                    
                 </p>
                 <p>
-                    The Airtable integration let the team easily launch new interactive maps like a map showing how various states'
-                    redistricting processes would be affected by delays in the 2020 Census—
-                    it's been shared across <a href="https://twitter.com/search?q=https%3A%2F%2Fgerrymander.princeton.edu%2Fredistricting-timeline-alert-map&src=typed_query">election twitter</a>
+                    The Airtable integration lets the team easily create one-pager content and launch new interactive maps. One recent map shows how various states'
+                    redistricting processes would be affected by delays in the 2020 Census. 
+                    It's been shared across <a href="https://twitter.com/search?q=https%3A%2F%2Fgerrymander.princeton.edu%2Fredistricting-timeline-alert-map&src=typed_query">election twitter </a>
                     and <a href="https://www.dailykos.com/stories/2021/3/26/2023090/-Voting-Rights-Roundup-GOP-passes-Georgia-s-most-far-reaching-voting-restriction-law-since-Jim-Crow">political news</a>.
                     The team will use the site for further interactive
                     research reports and data visualization as redistricting commences.
@@ -65,6 +65,7 @@ const NotFoundPage = ({ data, location }) => {
                 </a>
             </section>
         </article>
+        <hr />
         <article>
             <header>
                 <h2
@@ -78,8 +79,12 @@ const NotFoundPage = ({ data, location }) => {
                 <h5>2020 — now</h5>
                 <h5>Python, Django, Mapbox</h5>
                 <p>
-                    OpenPrecincts is a project hosting precinct-level electoral geospatial data. I began leading engineering in spring 2020. 
-                    I added the ability to read info about, download, and view multiple electoral result maps. 
+                    OpenPrecincts is a project hosting precinct-level electoral geospatial data. I took over engineering in spring 2020. 
+                    I realized the data-production team was creating multiple shapefiles per state, but was only able to display one.
+                    So, I added the ability to read info about, download, and view multiple precinct-level electoral result maps. This was a full stack project,
+                    across the project's React/Django code.
+                </p>
+                <p>
                     In the process, I had our team join the Mapbox Community program, and
                     <a href="https://www.mapbox.com/webinars/election-maps-princetongerry"> gave a talk on it as part of the Mapbox 
                     Elections Challenge speaker series</a>.
@@ -105,10 +110,16 @@ const NotFoundPage = ({ data, location }) => {
                 <h5>2018-2019</h5>
                 <h5>React, Redux, Mapbox</h5>
                 <p>
-                    At SharedStreets, I designed and built a web app with React/Redux using Mapbox to manage road closures and worked with PANYNJ
-                    to test it in their Agency Operations Center.
+                    I joined <a href="">SharedStreets</a> as the first employee. A few projects were spun up simultaneously to 
+                    try to find a use for the SharedStreets linear referencing system.
+                </p>
+                <p>
+                    I designed and built a web app myself with React/Redux using Mapbox to manage road closures.
+                    I worked with PANYNJ's data partnerships team to test an integration within their Agency Operations Center.
                     The app used the SharedStreets referencing system to make the data easily translatable
-                    between various government and commerical base maps. 
+                    between various government and commerical base maps, to try and prevent vendor lock-in. 
+                    
+                    I wrote features based on PANYNJ feedback, such as scheduled closures, and code to munge data into the Waze CIFS format.
                 </p>
                 <p>
                     I <a href="https://www.youtube.com/watch?v=ROemNM73E2c"> gave a talk on it at State of the Map US 2019 </a>
@@ -119,6 +130,7 @@ const NotFoundPage = ({ data, location }) => {
                 </a>
             </section>
         </article>
+        <hr />
         <article>
             <header>
                 <h2
@@ -136,16 +148,17 @@ const NotFoundPage = ({ data, location }) => {
                 <h5>2018</h5>
                 <h5>React, Redux, Leaflet, PostGIS</h5>
                 <p>
-                    With one teammate, I built a parking/curb management web app. I wrote all of the frontend code (react, redux)
-                    and did some geospatial data munging (postgis). 
+                    Continuing the parking theme, built I built a parking/curb management web app with two teammates.
+                    I wrote all of the frontend code (react, redux) and did some geospatial data munging (<a href="https://gist.github.com/indraneel/be554a9485e4837a5e40050a61a73199">
+                        I kept the postgis query</a>).
+                    Worked with one teammate on the necessary backend work, scoping out API requirements.
                     With another teammate, I called cities until we found a partner in, and ran a pilot program w/, the City of Asbury Park.
                     Ultimately we didn't find a strong product-market fit and disbanded the project. I joined SharedStreets shortly thereafter.
                 </p>
-                {/* <a href="https://openprecincts.org/tx"> */}
-                    <img src="/static/32f0533a6f74fa537c1ef36650a9b933/pavement-mgmt.png" />
-                {/* </a> */}
+                <img src="/static/32f0533a6f74fa537c1ef36650a9b933/pavement-mgmt.png" />
             </section>
         </article>
+        <hr />
         <article>
             <header>
                 <h2
@@ -162,8 +175,14 @@ const NotFoundPage = ({ data, location }) => {
                 <h5>2018</h5>
                 <h5>React, Leaflet</h5>
                 <p>
-                    With one teammate, built a web map of all the parking rules in Downtown Jersey City.
+                    Downtown Jersey City was in the middle of rapid growth in 2017.
+                    A friend and I built a web map of all the parking rules in Downtown Jersey City to solve
+                    our own parking problems.
                     I wrote all of the frontend code (react + a leaflet map) to visualize the data manually gathered by my teammate.
+                </p>
+                <p>
+                    Spoke with members of the City's Innovation team, who were supportive of the project verbally (though not financially).
+                    Still, seemed like there was something there around digitizing the curb.
                 </p>
                 <p>
                     To support data collection, <a href="https://github.com/indraneel/parking-sign-builder">
@@ -174,6 +193,7 @@ const NotFoundPage = ({ data, location }) => {
                 </a>
             </section>
         </article>
+        <hr />
         <article>
             <header>
                 <h2
@@ -195,12 +215,16 @@ const NotFoundPage = ({ data, location }) => {
                 <h5>React, Redux</h5>
                 <p>
                     Won 2nd place in a civic hackathon held by <a href="https://www.sustainablejersey.com/">Sustainable Jersey</a> in 2017.
-                    I wrote the UI of a dashboard for a local township to track their sustainability goals. Didn't get used but it was, for me, 
-                    a good entry into civic tech.
+                    We spoke with a NJ town who wanted a solution to track their sustainability goals. We met with their green team leader
+                    a few times, and determined that visualizing their progress was important for volunteers to feel bought into
+                    the work. We also determined that the ability to share on social media. 
+                    Over the period of a week, I wrote a web dashboard app in React, featuring a Pinterest-style card layout 
+                    for easy sharing. Good first foray into civic tech.
                 </p>
                 <img src="/static/11bfcac58409ca12f0c2f03cc5cf8184/sust-dashboard.png" />
             </section>
         </article>
+        <hr />
         <article>
             <header>
                 <h2
@@ -213,8 +237,8 @@ const NotFoundPage = ({ data, location }) => {
                 <h5>2015-2018</h5>
                 <h5>React, Redux</h5>
                 <p>
-                    Worked on a few enterprise web apps to start my career. They're not public/
-                    are probably defunct now but you can read some archived product blog posts:
+                    Worked on a few enterprise web apps to start my career. Learned JavaScript, React, and agile software development.
+                    They are probably defunct now but you can read some archived product blog posts:
                     <ul>
                         <li>
                             <a href="https://web.archive.org/web/20180514073045/http://productblog.appnexus.com/rapid-reliable-creative-previewing-2/">
