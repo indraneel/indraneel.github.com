@@ -1,18 +1,18 @@
 /**
- * Bio component that queries for data
+ * BioComponent component that queries for data
  * with Gatsby's useStaticQuery component
  *
  * See: https://www.gatsbyjs.org/docs/use-static-query/
  */
 
 import React from "react"
-import { useStaticQuery, graphql } from "gatsby"
+import { useStaticQuery, graphql, Link } from "gatsby"
 
 import { rhythm } from "../utils/typography"
 
-const Bio = () => {
+const BioComponent = () => {
   const data = useStaticQuery(graphql`
-    query BioQuery {
+    query BioComponentQuery {
       site {
         siteMetadata {
           social {
@@ -33,6 +33,11 @@ const Bio = () => {
       }}
     >
       <div>
+        <Link to={`/work`} >
+          work
+        </Link>
+      </div>
+      <div>
         <a href={`https://github.com/indraneel`} target={`_blank`}>
           github
         </a>
@@ -46,4 +51,4 @@ const Bio = () => {
   )
 }
 
-export default Bio
+export default BioComponent
