@@ -38,6 +38,11 @@ const BioComponent = () => {
         </Link>
       </div>
       <div>
+        <Link to={`/talks`} >
+          talks
+        </Link>
+      </div>
+      <div>
         <a href={`https://github.com/indraneel`} target={`_blank`}>
           github
         </a>
