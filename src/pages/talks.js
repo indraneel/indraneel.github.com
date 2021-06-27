@@ -58,4 +58,21 @@ const TalksPage = ({ data, location }) => {
   )
 }
 
-export default TalksPage
+export default TalksPage;
+
+export const pageQuery = graphql`
+  query {
+    site {
+      siteMetadata {
+        title
+      }
+    }
+    allFile(filter: {sourceInstanceName: {eq: "assets"}}) {
+        nodes {
+          id
+          publicURL
+          name
+        }
+      }
+  }
+`
