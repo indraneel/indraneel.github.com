@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Indraneel Purohit | Redistricting Report Card</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="../tailwind-3.4.15.css"></script>
+    <style>
+      body {
+        font-family: sans-serif;
+        font-size: 12px;
+      }
+
+      .section-header {
+        background-color: #1e3a8a;
+        color: #fde047;
+        padding: 0px 4px;
+        margin-bottom: 2px;
+        font-size: 13px;
+      }
+
+      h1 {
+        font-size: 24px;
+        margin-bottom: 4px;
+      }
+
+      body a {
+        color: #1e40af;
+        text-decoration: none;
+        transition: color 0.2s ease;
+      }
+
+      body a:hover {
+        color: #1e3a8a;
+      }
+    </style>
+  </head>
+  <body class="max-w-[8.5in] mx-auto p-3">
+    <!-- Header -->
+    <header class="flex flex-col md:flex-row justify-between items-center mb-8">
+      <h1 class="font-normal"><a href="/">Indraneel Purohit</a></h1>
+      <nav class="flex space-x-6">
+        <a href="/resume.html" class="nav-link">Resume</a>
+      </nav>
+    </header>
+
+    <!-- Links -->
+    <div class="mb-8">
+      <div class="section-header">PROJECT</div>
+      <div class="mt-4">
+        <div>
+          <h2 class="text-xl mb-2">Redistricting Report Card</h2>
+          <p class="mb-2"><a href="https://gerrymander.princeton.edu/redistricting-report-card">visit the site</a></p>
+          <p class="mb-2"><em>2021</em></p>
+          <p class="mb-4"><strong>Technologies:</strong> React, D3.js, Gatsby, Netlify, Airtable, S3</p>
+          
+          <p class="mb-4">
+            I built this entire interactive data visualization: the Mapbox styling, the tooltip that persisted across the page, and each of the charts (in D3). The charts had to fit everything from New Hampshire congressional map to the Texas State Legislature. 
+          </p>
+          <p class="mb-4">I also built out the deploy pipeline (Airtable => S3 => Github => Netlify) so this could be produced live during the redistricting cycle.</p>
+          
+          <img src="/img/redistricting-summary.png" alt="Redistricting Report Card" class="mt-4 max-w-full"/>
+          <img src="/img/redistricting-metrics.png" alt="Redistricting Report Card Metrics" class="mt-4 max-w-full"/>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
