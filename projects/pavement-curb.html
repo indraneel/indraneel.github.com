@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Indraneel Purohit | Pavement (curb rules viewer)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="../tailwind-3.4.15.css"></script>
+    <style>
+      body {
+        font-family: sans-serif;
+        font-size: 12px;
+      }
+
+      .section-header {
+        background-color: #1e3a8a;
+        color: #fde047;
+        padding: 0px 4px;
+        margin-bottom: 2px;
+        font-size: 13px;
+      }
+
+      h1 {
+        font-size: 24px;
+        margin-bottom: 4px;
+      }
+
+      body a {
+        color: #1e40af;
+        text-decoration: none;
+        transition: color 0.2s ease;
+      }
+
+      body a:hover {
+        color: #1e3a8a;
+      }
+    </style>
+  </head>
+  <body class="max-w-[8.5in] mx-auto p-3">
+    <!-- Header -->
+    <header class="flex flex-col md:flex-row justify-between items-center mb-8">
+      <h1 class="font-normal"><a href="/">Indraneel Purohit</a></h1>
+      <nav class="flex space-x-6">
+        <a href="/resume.html" class="nav-link">Resume</a>
+      </nav>
+    </header>
+
+    <!-- Links -->
+    <div class="mb-8">
+      <div class="section-header">PROJECT</div>
+      <div class="mt-4">
+        <div>
+          <h2 class="text-xl mb-2">Pavement (curb rules viewer)</h2>
+          <p class="mb-2">
+            <a href="https://trypavement.com/">visit the site</a> | 
+            <a href="https://github.com/teampavement/pavement-sms">github</a>
+          </p>
+          <p class="mb-2"><em>2018</em></p>
+          <p class="mb-4"><strong>Technologies:</strong> React, Leaflet</p>
+          
+          <p class="mb-4">Downtown Jersey City was in the middle of rapid growth in 2017. A friend and I built a web map of all the parking rules in Downtown Jersey City to solve our own parking problems. I wrote all of the frontend code (react + a leaflet map) to visualize the data manually gathered by my teammate.</p>
+          
+          <p class="mb-4">Spoke with members of the City's Innovation team, who were supportive of the project verbally (though not financially). Still, seemed like there was something there around digitizing the curb.</p>
+          
+          <p class="mb-4">To support data collection, <a href="https://github.com/indraneel/parking-sign-builder">I wrote a smaller tool to help generate properly formatted JSON</a>.</p>
+          
+          <img src="/img/pavement-curb.png" alt="Pavement Curb Rules Viewer Interface" class="mt-4 max-w-full"/>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Indraneel Purohit | Pavement (curb management tool)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="../tailwind-3.4.15.css"></script>
+    <style>
+      body {
+        font-family: sans-serif;
+        font-size: 12px;
+      }
+
+      .section-header {
+        background-color: #1e3a8a;
+        color: #fde047;
+        padding: 0px 4px;
+        margin-bottom: 2px;
+        font-size: 13px;
+      }
+
+      h1 {
+        font-size: 24px;
+        margin-bottom: 4px;
+      }
+
+      body a {
+        color: #1e40af;
+        text-decoration: none;
+        transition: color 0.2s ease;
+      }
+
+      body a:hover {
+        color: #1e3a8a;
+      }
+    </style>
+  </head>
+  <body class="max-w-[8.5in] mx-auto p-3">
+    <!-- Header -->
+    <header class="flex flex-col md:flex-row justify-between items-center mb-8">
+      <h1 class="font-normal"><a href="/">Indraneel Purohit</a></h1>
+      <nav class="flex space-x-6">
+        <a href="/resume.html" class="nav-link">Resume</a>
+      </nav>
+    </header>
+
+    <!-- Links -->
+    <div class="mb-8">
+      <div class="section-header">PROJECT</div>
+      <div class="mt-4">
+        <div>
+          <h2 class="text-xl mb-2">Pavement (curb management tool)</h2>
+          <p class="mb-2">
+            <a href="https://drive.google.com/file/d/1NfhtqkfGBOVULoaAPGoYT7ZFjhY0DLWI/view">video demo</a> | 
+            <a href="https://drive.google.com/file/d/1m3_IEqpjnn2kx-yPdHXO43zOBdwegGUc/view">one pager</a> |
+            <a href="https://github.com/teampavement/pavement-dashboard">github</a>
+          </p>
+          <p class="mb-2"><em>2018</em></p>
+          <p class="mb-4"><strong>Technologies:</strong> React, Redux, Leaflet, PostGIS</p>
+          
+          <p class="mb-4">Continuing the parking theme, I built a parking/curb management web app with two teammates. I wrote all of the frontend code (react, redux) and did some geospatial data munging (<a href="https://gist.github.com/indraneel/be554a9485e4837a5e40050a61a73199">check out the PostGIS query</a>). Worked with one teammate on the necessary backend work, scoping out API requirements.</p>
+          
+          <p class="mb-4">With another teammate, I called cities until we found a partner in, and ran a pilot program with, the City of Asbury Park. Ultimately we didn't find a strong product-market fit and disbanded the project. I joined SharedStreets shortly thereafter.</p>
+          
+          <img src="/img/pavement-mgmt.png" alt="Pavement Management Tool Interface" class="mt-4 max-w-full"/>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

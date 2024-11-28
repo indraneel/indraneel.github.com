@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Indraneel Purohit | Princeton Gerrymandering Project website</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="../tailwind-3.4.15.css"></script>
+    <style>
+      body {
+        font-family: sans-serif;
+        font-size: 12px;
+      }
+
+      .section-header {
+        background-color: #1e3a8a;
+        color: #fde047;
+        padding: 0px 4px;
+        margin-bottom: 2px;
+        font-size: 13px;
+      }
+
+      h1 {
+        font-size: 24px;
+        margin-bottom: 4px;
+      }
+
+      body a {
+        color: #1e40af;
+        text-decoration: none;
+        transition: color 0.2s ease;
+      }
+
+      body a:hover {
+        color: #1e3a8a;
+      }
+    </style>
+  </head>
+  <body class="max-w-[8.5in] mx-auto p-3">
+    <!-- Header -->
+    <header class="flex flex-col md:flex-row justify-between items-center mb-8">
+      <h1 class="font-normal"><a href="/">Indraneel Purohit</a></h1>
+      <nav class="flex space-x-6">
+        <a href="/resume.html" class="nav-link">Resume</a>
+      </nav>
+    </header>
+
+    <!-- Links -->
+    <div class="mb-8">
+      <div class="section-header">PROJECT</div>
+      <div class="mt-4">
+        <div>
+          <h2 class="text-xl mb-2">Princeton Gerrymandering Project website</h2>
+          <p class="mb-2"><a href="https://gerrymander.princeton.edu">visit the site</a></p>
+          <p class="mb-2"><em>2020</em></p>
+          <p class="mb-4"><strong>Technologies:</strong> React, Gatsby, Netlify Functions, Airtable</p>
+          
+          <p class="mb-4">When I joined the team in early 2020 the site was a React app with data stored as plaintext, JSON, and a Firebase database, plus a separate Django app iframed/proxied in. The team found it difficult for the site's content to be updated. Going into the 2021 redistricting cycle, I knew the site would be important for the team + rotating cast of students to update content behind static pages, interactive pieces, and any advanced application functionality we wanted to add.</p>
+          
+          <p class="mb-4">I decided to redesign and rewrite the site as a new React app using Gatsby, which I deployed on Netlify. I led an undergrad to work an initial prototype, after which I took ownership. I brought over the <a href="http://gerrymander.princeton.edu/tests">existing JSON-driven interactive page</a> without any loss of functionality. To support an <a href="https://participant.com/campaigns/slaythedragon">marketing partnership</a>, I used Netlify Functions to deploy an RSS feed. I sunset the Firebase- and Django-driven pages, replacing them with static Markdown and an Airtable integration respectively.</p>
+          
+          <p class="mb-4">The Airtable integration lets the team easily create one-pager content and launch new interactive maps. One recent map shows how various states' redistricting processes would be affected by delays in the 2020 Census. It's been shared across <a href="https://twitter.com/search?q=https%3A%2F%2Fgerrymander.princeton.edu%2Fredistricting-timeline-alert-map&src=typed_query">election twitter</a> and <a href="https://www.dailykos.com/stories/2021/3/26/2023090/-Voting-Rights-Roundup-GOP-passes-Georgia-s-most-far-reaching-voting-restriction-law-since-Jim-Crow">political news</a>. The team will use the site for further interactive research reports and data visualization as redistricting commences.</p>
+          
+          <img src="/img/redistricting-timeline-map.png" alt="Redistricting Timeline Map" class="mt-4 max-w-full"/>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
