@@ -1,343 +1,220 @@
 <!DOCTYPE html>
 <html>
-	<head>
-		<meta name="viewport" content="width=device-width, user-scalable=no">
-		<link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.5.0/pure-min.css">
-		<!--[if lte IE 8]>
-	    	<link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.5.0/grids-responsive-old-ie-min.css">
-		<![endif]-->
-		<!--[if gt IE 8]><!-->
-		    <link rel="stylesheet" href="http://yui.yahooapis.com/pure/0.5.0/grids-responsive-min.css">
-		<!--<![endif]-->
-		<link rel="stylesheet" href="./css/resume.css">
-		<link rel="stylesheet" href="./css/print.css">
-	</head>
-	<body>
-		<div class="pure-g resume">
-			<!--Header-->
-			<section class="resume-section">
-				<div class="pure-u-md-2-5 pure-u-1">
-					<article id="name">
-						Indraneel Purohit
-					</article>
-				</div>
+  <head>
+    <title>Indraneel Purohit - Resume</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="./tailwind-3.4.15.css"></script>
+    <style>
+      @media print {
+        @page {
+          margin: 0.3in;
+          size: letter;
+        }
+        body {
+          print-color-adjust: exact;
+          -webkit-print-color-adjust: exact;
+          width: 100%;
+        }
+        a {
+          text-decoration: none;
+          color: inherit !important;
+        }
+        .section-header {
+          background-color: #1e3a8a !important;
+          color: #fde047 !important;
+          print-color-adjust: exact;
+          -webkit-print-color-adjust: exact;
+        }
+        /* Force columns in print */
+        .print-cols-2 {
+          display: flex !important;
+        }
+        .print-col-1-3 {
+          width: 33.333333% !important;
+        }
+        .print-col-2-3 {
+          width: 66.666667% !important;
+        }
+        .print-col-1-4 {
+          width: 25% !important;
+        }
+        .print-col-1-2 {
+          width: 50% !important;
+        }
+      }
+      .section-header {
+        background-color: #1e3a8a;
+        color: #fde047;
+        padding: 0px 4px;
+        margin-bottom: 2px;
+        font-size: 13px;
+      }
 
-				<div class="pure-u-md-3-5 pure-u-1">
-					<article class="pure-g" id="contact-info">
-						<a class="pure-u-md-1-2 pure-u-1" href="mailto:indraneelpurohit@gmail.com">indraneelpurohit@gmail.com</a>
-						<a class="pure-u-md-1-2 pure-u-1" href="http://github.com/indraneel">github.com/indraneel</a>
-					</article>
-				</div>
-			</section>
+      body {
+        font-family: sans-serif;
+        font-size: 12px;
 
-			<!--Education-->
-			<section class="resume-section">
-				<div class="pure-u-1 section-divider">
-					<span class="section-title">Education</span>
-				</div>
-				<ul class="info-list pure-u-md-2-5 pure-u-1">
-					<li class="left-title bold">Rutgers University</li>
-					<li class="left-detail">Class of 2015</li>
-					<li class="left-detail">BS, Computer Science</li>
-					<li class="left-sub-detail">Minor: Political Science</li>
-					<li class="left-sub-detail"><a href="http://admissions.rutgers.edu/costs/scholarships/firstyearscholarships.aspx#MsoTableGrid">James Dickson Carr Scholar</a></li>
-				</ul>
-				<ul class="info-list pure-u-md-3-5 pure-u-1">
-					<li class="right-detail"><span class="bold">GPA:</span> 3.5</li>
-					<li class="right-detail"><span class="bold">Courses of note:</span>
-						<div class="right-grid pure-g" >
-							<ul class="right-column pure-u-md-1-3 pure-u-1-2">
-								<li>Data Structures</li>
-								<li>Computer Architecture</li>
-								<li>Software Methodology</li>
-								<li>Systems Programming</li>
-							</ul>
-							<ul class="right-column pure-u-md-1-3 pure-u-1-2">
-								<li>Math Reasoning</li>
-								<li>Probability</li>
-								<li>Programming Langs.</li>
-								<li>Distributed Systems</li>
-							</ul>
-							<ul class="right-column pure-u-md-1-3 pure-u-1-2">
-								<li>Data Science</li>
-								<li>Algorithms</li>
-								<li>Grad. Algorithms</li>
-								<li>Political Campaigning</li>
-								<li>Political Science Research</li>
-							</ul>
-						</div>
-					</li>
-				</ul>
-			</section>
+      }
 
-			<!--Experience-->
-			<section class="resume-section">
-				<div class="pure-u-1 section-divider">
-					<span class="section-title">Experience</span>
-				</div>
-				<ul class="info-list pure-u-md-2-5 pure-u-1">
-					<li class="left-title"><a href="https://appnexus.com">AppNexus</a>
-					</li>
-					<li class="left-detail">Software Engineer
-					</li>
-					<li class="left-detail">July 2015 - Present
-					</li>
-					<li class="left-sub-detail">ES6/React/Redux/Node, Java/Play, JIRA
-					</li>
-				</ul>
-				<div class="pure-u-md-3-5 pure-u-1">
-					<section class="right-detail">Frontend/backend engineering on advertiser-side of AppNexus. Major projects include: built new ad manager single page app, rewrote VAST validator API, built/integrated new ad preview system APIs.</section>
-					<section class="right-detail">Team project manager, ran scrum meetings/managed backlog, wrote customer-facing documentation.</section>
-				</div>
-				<hr />
-				<ul class="info-list pure-u-md-2-5 pure-u-1">
-					<li class="left-title"><a href="http://yahoo.com">Yahoo!</a>
-					</li>
-					<li class="left-detail">Technical Intern
-					</li>
-					<li class="left-detail">Summer 2014
-					</li>
-					<li class="left-sub-detail">JavaScript/Ember JS, Java/Spring
-					</li>
-				</ul>
-				<div class="pure-u-md-3-5 pure-u-1">
-					<section class="right-detail">Member of Ads & Data team. Worked as member of a team on an internal tool called Sponsorfront, helped sales team sell 30% more full-page sponsorships.</section>
-				</div>
-				<hr />
-				<ul class="info-list pure-u-md-2-5 pure-u-1">
-					<li class="left-title"><a href="http://oss.rutgers.edu" rel="nofollow">Rutgers Open Systems Solutions</a>
-					</li>
-					<li class="left-detail">Student Systems Programmer
-					</li>
-					<li class="left-detail">March 2013 - May 2015
-					</li>
-					<li class="left-sub-detail">*nix, HTML/CSS, JavaScript, Python, Product Design
-					</li>
-				</ul>
-				<div class="pure-u-md-3-5 pure-u-1">
-					<section class="right-detail">Building websites, web applications, performing maintenance, building RPMs and system administration for an enterprise-level computing environment.</section>
-					<section class="right-detail">Worked on initial product design for the <a href="http://github.com/rutgersmobile/">Rutgers mobile application</a>.</section>
-				</div>
-<hr />
-				<ul class="info-list pure-u-md-2-5 pure-u-1">
-					<li class="left-title"><a href="http://saavn.com" rel="nofollow">Saavn</a>
-					</li>
-					<li class="left-detail">Engineering Intern
-					</li>
-					<li class="left-detail">Summer 2013
-					</li>
-					<li class="left-sub-detail">JavaScript
-					</li>
-				</ul>
-				<div class="pure-u-md-3-5 pure-u-1">
-					<section class="right-detail">Built Saavn Match, a prototype of a tool designed to port user playlists into the service, to improve user retention.</section>
-				</div>
-<hr />
-				<!-- <ul class="info-list pure-u-md-2-5 pure-u-1">
-					<li class="left-title"><a href="http://ebpl.org">East Brunswick Public Library</a>
-					</li>
-					<li class="left-detail">Summer Intern
-					</li>
-					<li class="left-detail">Summer 2012
-					</li>
-					<li class="left-sub-detail">PHP, Coldfusion
-					</li>
-				</ul>
-				<div class="pure-u-md-3-5 pure-u-1">
-					<section class="right-detail">Added support for Paypal payments and donations on library website.</section>
-				</div> -->
+      .tech-stack {
+        font-style: italic;
+        color: #666;
+        font-size: 10px;
+      }
 
-				<ul class="info-list pure-u-md-2-5 pure-u-1">
-					<li class="left-title"><a href="http://www.technologytell.com/gadgets/">Gadgetell</a>
-					</li>
-					<li class="left-detail">Contributor
-					</li>
-					<li class="left-detail">April 2007-September 2010
-					</li>
-				</ul>
-				<div class="pure-u-md-3-5 pure-u-1">
-					<section class="right-detail">Wrote articles on technology news and reviewed products for an audience of 200,000 monthly readers.</section>
-				</div>
-			</section>
+      h1 {
+        font-size: 24px;
+        margin-bottom: 4px;
+      }
 
-			<!-- projects
-			<section class="resume-section">
-				<div class="pure-u-1 section-divider">
-					<span class="section-title">Projects</span>
-				</div>
+      body a {
+        color: #1e40af;
+        text-decoration: none;
+        transition: color 0.2s ease;
+      }
 
-				<ul class="info-list pure-u-md-2-5 pure-u-1">
-					<li class="left-title"><a href="http://www.nhsjs.com">IDIA</a>
-					</li>
-				</ul>
+      body a:hover {
+        color: #1e3a8a;
+      }
+    </style>
+  </head>
+  <body class="max-w-[8.5in] mx-auto p-3">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row print:!flex-row">
+        <div class="w-full md:w-1/3 print:!w-1/3 pr-2">
+      <h1 class="font-normal"><a href="/">Indraneel Purohit</a></h1>
+    </div>
+    <div class="w-full md:w-2/3 print-col-2-3"></div>
+      <div class="flex flex-col sm:flex-row space-y-0.5 sm:space-y-0 sm:space-x-6">
+        <a href="mailto:indraneelpurohit@gmail.com" >indraneelpurohit@gmail.com</a>
+        <a href="http://github.com/indraneel" >github.com/indraneel</a>
+      </div>
+    </div>
 
-				<div class="info-list pure-u-md-3-5 pure-u-1">
-				<section class="right-detail">Wrote articles on technology news and reviewed products for an audience of 200,000 monthly readers.</section>
-				</div>
+    <!-- Experience -->
+    <div class="mb-1">
+      <div class="section-header">Experience</div>
+      
+      <!-- Two Sigma -->
+      <div class="mb-2">
+        <div class="flex flex-col md:flex-row print:!flex-row">
+            <div class="w-full md:w-1/3 print:!w-1/3 pr-2">
+            <a href="https://dataclinic.twosigma.com/" class="text-purple-700 font-bold">Two Sigma, Data Clinic</a>
+            <div class="font-bold">Software Engineer</div>
+            <div>June 2022 - now</div>
+            <div class="tech-stack">TypeScript, React, Python, FastAPI, Geospatial (Mapbox, PMTiles, GDAL, GeoPandas, PostGIS), AWS</div>
+          </div>
+          <div class="w-full md:w-2/3 print-col-2-3">
+            <div class="mb-0.5">Data Clinic is the pro-bono initiative of <a href="https://twosigma.com/" >Two Sigma</a>, the hedge fund.</div>
+            <div class="mb-0.5">Developed and managed partnership with <a href="https://mobilitydata.org/" >MobilityData</a>. Led engineering team to launch <a href="https://github.com/MobilityData/mobility-feed-api" >Mobility Database API</a>. Leading one junior engineer to launch <a href="https://mobilitydatabase.org/" >UI</a> (<a href="https://github.com/MobilityData/mobility-feed-api/tree/main/web-app" >code here</a>).</div>
+            <div class="mb-0.5">Engineering lead on an <a href="https://trec.tsdataclinic.com" >interactive data viz on flooding + transit</a> (<a href="https://github.com/tsdataclinic/TREC" >code</a>), presented at <a href="https://schedule.sxsw.com/2024/events/PP146104" >SXSW</a> as part of <a href="https://youtu.be/aUvG5fpQtD0&t=11303" >The Census Bureau's Opportunity Project</a>.</div>
+            <div class="mb-0.5">Geospatial subject matter expert. Presented a talk titled <a href="https://www.youtube.com/watch?v=rs7kdZOsCxQ">"Switching to PMTiles"</a> at State of the Map 2023 (and wrote <a href="https://www.twosigma.com/articles/web-mapping-with-pmtiles/" >accompanying article</a>).</div>
+            <div class="mb-0.5">Developed and managed ongoing partnership with American Red Cross.</div>
+            <div>Meet and present regularly with nonprofit executive stakeholders.</div>
+          </div>
+        </div>
+      </div>
 
-			</section> -->
+      <!-- Princeton -->
+      <div class="mb-2">
+        <div class="flex flex-col md:flex-row print:!flex-row">
+            <div class="w-full md:w-1/3 print:!w-1/3 pr-2">
+            <a href="https://www.electoral-lab.org" class="text-purple-700 font-bold">Princeton University, Electoral Innovation Lab</a>
+            <div class="font-bold">Senior Software Engineer</div>
+            <div>January 2020 - June 2022</div>
+            <div class="tech-stack">React, D3.js, Gatsby, Django, Netlify, Mapbox, tippecanoe, GDAL, GeoPandas, AWS</div>
+          </div>
+          <div class="w-full md:w-2/3 print-col-2-3">
+            <div class="mb-0.5">Engineering and product lead on an interactive visualization, <a href="https://gerrymander.princeton.edu/redistricting-report-card" >the Redistricting Report Card</a>. Designed and built all site maps, graphics and charts in React, Mapbox, and D3.js. Grew to half a million page views, 50k total users, 1k weekly active users during peak redistricting news cycle (Aug-Dec 2021).</div>
+            <div class="mb-0.5">Led data science team on the project. Managed <a href="https://act.represent.us/sign/redistricting-report-card-launched-representus-princeton-gerrymandering-project/" >external partner</a> relationship. Project cited by <a href="https://www.nytimes.com/2021/10/15/us/politics/illinois-democrats-gerrymander.html" >The New York Times</a>, <a href="https://www.axios.com/states-grade-redistricting-gerrymandering-2022-election-house-9779bb90-9aba-4e44-98dc-b9f4d0b7333f.html" >Axios</a>, and <a href="https://michiganadvance.com/2021/10/15/princeton-gerrymandering-project-grades-michigans-redistricting-maps/" >local outlets</a> and covered by <a href="https://thehill.com/regulation/567441-voting-advocates-roll-out-digital-tools-to-fight-gerrymandering" >The Hill</a>.</div>
+            <div>Also maintained <a href="https://github.com/openprecincts" >OpenPrecincts</a>. Met regularly with community stakeholders. <a href="https://www.youtube.com/watch?v=Dm08YaTlnSs" >Gave a talk as part of Mapbox's 2020 election series</a>.</div>
+          </div>
+        </div>
+      </div>
 
+      <!-- SharedStreets -->
+      <div class="mb-2">
+        <div class="flex flex-col md:flex-row print:!flex-row">
+            <div class="w-full md:w-1/3 print:!w-1/3 pr-2">
+            <a href="https://sharedstreets.io" class="text-purple-700 font-bold">SharedStreets</a>
+            <div class="font-bold">Software Engineer</div>
+            <div>October 2018 – October 2019</div>
+            <div class="tech-stack">TypeScript, React/Redux, Node, Mapbox, GeoJSON, Open source, AWS, CircleCI</div>
+          </div>
+          <div class="w-full md:w-2/3 print-col-2-3">
+            <div class="mb-0.5">Employee #1. Led <a href="https://sharedstreets.io/introducing-sharedstreets-road-closures/" >SharedStreets Road Closures project</a>. Built <a href="http://github.com/sharedstreets/sharedstreets-road-closure-ui" >a geospatial visualization + data editing app</a> and managed pilot w/ PANYNJ.</div>
+            <div>Gave talks about the project at <a href="https://www.youtube.com/watch?v=ROemNM73E2c" >State of the Map US 2019</a> and <a href="https://www.youtube.com/watch?v=LUbZs_Kv-Pg" >the Transit Techies meetup</a>.</div>
+          </div>
+        </div>
+      </div>
 
-			<!--hackathon Projects-->
-<!-- 			<section class="resume-section">
-				<div class="pure-u-1 section-divider">
-					<span class="section-title">Hackathon Projects</span>
-				</div>
-				<ul class="info-list pure-u-md-1-3 pure-u-1">
-					<li class="left-title"><a href="https://github.com/robertf224/vinelist">Vinelist</a>
-					</li>
-					<li class="left-sub-detail">3rd place, hackNY fall 2013
-					</li>
-					<li class="left-sub-detail">nodejs, Angular JS, MongoDB
-					</li>
-				</ul>
-				<ul class="info-list pure-u-md-1-3 pure-u-1">
-					<li class="left-title"><a href="http://github.com/indraneel/getgoing">/GET/Going</a>
-					</li>
-					<li class="left-sub-detail">Best Mobile Hack, Hack RU fall 2012
-					</li>
-					<li class="left-sub-detail">nodejs, Angular JS, MongoDB
-					</li>
-				</ul>
-				<ul class="info-list pure-u-md-1-3 pure-u-1">
-					<li class="left-title"><a href="http://github.com/indraneel/Punch-Card">Punch Card Love</a>
-					</li>
-					<li class="left-sub-detail">Best Twilio Hack, hackNY spring 2013
-					</li>
-					<li class="left-sub-detail">Arduino, JS, Python, Processing
-					</li>
-				</ul>
-			</section>
- -->
-			
-			<!--Projects-->
-			<section class="resume-section">
-				<div class="pure-u-1 section-divider">
-					<span class="section-title">Projects</span>
-				</div>
+      <!-- AppNexus -->
+      <div class="mb-2">
+        <div class="flex flex-col md:flex-row print:!flex-row">
+            <div class="w-full md:w-1/3 print:!w-1/3 pr-2">
+            <div class="w-full md:w-2/3 print:!w-2/3">
+            <a href="https://appnexus.com" class="text-purple-700 font-bold">AppNexus</a>
+            <div class="italic">Software Engineer 2 (July 2015 - October 2018)</div>
+          </div>
+          </div>
+          <div class="w-full md:w-2/3 print-col-2-3">
+            <div>Led native ads manager web app project (React/Redux/Java) to initial release. Led agile ceremonies for team.</div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-				<ul class="info-list pure-u-md-1-4 pure-u-1">
-					<li class="left-title">Instagram Comment @Reply
-					</li>
-					<li class="left-detail"><a href="https://chrome.google.com/webstore/detail/instagram-comment-reply/clcbifpgiljjhihdabeedkdmplcogcmc">Chrome Extension</a>
-					</li>
-					<li class="left-detail"><a href="https://github.com/indraneel/instagram-comment-at-reply">GitHub</a>
-					</li>
-				</ul>
-				<ul class="info-list pure-u-md-1-4 pure-u-1">
-					<li class="left-title">Sustainability Dashboard (in-progress)
-					</li>
-					<li class="left-detail"><a href="https://github.com/indraneel/sustainability-dashboard">GitHub</a>
-					</li>
-				</ul>
-				<ul class="info-list pure-u-md-1-4 pure-u-1">
-					<li class="left-title"><a href="https://github.com/robertf224/vinelist">Vinelist</a>
-					</li>
-					<li class="left-sub-detail">3rd place, hackNY fall 2013
-					</li>
-				</ul>
-			
-				<ul class="info-list pure-u-md-1-4 pure-u-1">
-					<li class="left-title"><a href="http://github.com/indraneel/getgoing">/GET/Going</a>
-					</li>
-					<li class="left-sub-detail">Best Mobile Hack, Hack RU fall 2012
-					</li>
-					<li class="left-sub-detail">nodejs, Angular JS, MongoDB
-					</li>
-				</ul>
-			</section>
-			
-			<!--Skills-->
-			<section class="resume-section">
-				<div class="pure-u-1 section-divider">
-					<span class="section-title">Skills</span>
-				</div>
-<!-- 				<div class="pure-u-md-2-5 pure-u-1">
-					<div class="left-title">Technical
-				</div>
-				</div>
- -->
-				<div class="pure-u-md-1-2 pure-u-1">
-					<section class="right-detail">
-						<span class="bold">Proficient:</span> JavaScript/ES6, Python
-					</section>
-					<section class="right-detail">
-						<span class="bold">Familiar:</span> Java, Swift
-					</section>
-					<section class="right-detail">
-						<span class="bold">Frameworks/Libraries:</span> React, React Native, Redux, EmberJS, Flask, Play, Babel, Webpack, Gulp, LESS
-					</section>
-					<section class="right-detail">
-						<span class="bold">Tools:</span> git, nginx, puppet, jenkins
-					</section>
-				</div>
-<!-- 				<div class="pure-u-md-2-5 pure-u-1">
-					<div class="left-title">Other
-					</div>
+    <!-- Education -->
+    <div class="mb-1">
+      <div class="section-header">Education</div>
+      <div class="grid grid-cols-1 md:grid-cols-4 print:!grid-cols-4 gap-1">
+        <div>
+          <div class="font-bold">Rutgers University</div>
+          <div>BS, Computer Science '15</div>
+          <div class="italic text-xs">Minor: Political Science</div>
+          <div class="italic text-xs">James Dickson Carr Scholar</div>
+        </div>
+        <div>
+          <div>Yahoo!</div>
+          <div>Technical Intern</div>
+        </div>
+        <div>
+          <div><a href="http://oss.rutgers.edu" >Rutgers Open Systems Solutions</a></div>
+          <div>Software Engineer</div>
+        </div>
+        <div>
+          <div><a href="http://saavn.com" >Saavn</a></div>
+          <div>Engineering Intern</div>
+        </div>
+      </div>
+    </div>
 
-				</div> -->
-				<div class="pure-u-md-1-2 pure-u-1">
-					<section class="right-detail">
-						<span class="bold">Audio:</span> Logic Pro (engineering/production)
-					</section>
-					<section class="right-detail">
-						<span class="bold">Visual:</span> Adobe Photoshop/Illustrator/InDesign, Final Cut Pro
-					</section>
-				</div>
-			</section>
+    <!-- Skills -->
+    <div class="mb-1">
+      <div class="section-header">Skills</div>
+      <div class="grid grid-cols-1 md:grid-cols-2 print:!grid-cols-2 gap-1">
+      <div class="mb-0.5"><span class="font-bold">Proficient:</span> JavaScript, TypeScript, Python</div>
+      <div class="mb-0.5"><span class="font-bold">Frameworks/Libraries:</span> React, FastAPI, Django, D3.js, Mapbox/MapLibre</div>
+      <div class="mb-0.5"><span class="font-bold">Tools:</span> QGIS, PostGIS, nginx, Figma</div>
+      <div><span class="font-bold">Creative:</span> Logic Pro, Adobe Photoshop/Illustrator/InDesign, Final Cut Pro</div>
+    </div>
 
-			<!--Leadership-->
-			<section class="resume-section">
-				<div class="pure-u-1 section-divider">
-					<span class="section-title">Leadership</span>
-				</div>
-
-				<ul class="info-list pure-u-md-1-4 pure-u-1">
-					<li class="left-title">Rutgers Model Congress
-					</li>
-					<li class="left-detail">Executive Staff, Spring 2014-Spring 2015
-					</li>
-				</ul>
-<!-- 				<div class="pure-u-md-3-5 pure-u-1">
-					<section class="right-detail">Selected and developed a staff of 50. Led a team of 10 in all logistical, adminstrative and technical processes at Rutgers Model Congress 2015 - an annual 500-student conference.</section>
-				</div>
- -->
-				<ul class="info-list pure-u-md-1-4 pure-u-1">
-					<li class="left-title">Rutgers Music Producers
-					</li>
-					<li class="left-detail">Founder, 2014
-					</li>
-				</ul>
-<!-- 				<div class="pure-u-md-3-5 pure-u-1">
-					<section class="right-detail">Created a student organization to federate and foster the community of Rutgers students interested in creating recorded music.</section>
-				</div>
- -->
-				<ul class="info-list pure-u-md-1-4 pure-u-1">
-					<li class="left-title">Rutgers University
-					</li>
-					<li class="left-detail">First Year Interest Group Seminar Instructor
-					</li>
-					<li class="left-detail">Fall 2013
-					</li>
-				</ul>
-<!-- 				<div class="pure-u-md-3-5 pure-u-1">
-					<section class="right-detail">Taught a seminar for first year students entitled "Exploring Computer Science."</section>
-				</div>
- -->
-				<ul class="info-list pure-u-md-1-4 pure-u-1">
-					<li class="left-title">Rutgers University
-					</li>
-					<li class="left-detail">Teaching Assistant, Intro. to CS
-					</li>
-					<li class="left-detail">Fall 2012-Fall 2013
-					</li>
-				</ul>
-<!-- 				<div class="pure-u-md-3-5 pure-u-1">
-					<section class="right-detail">Lead a weekly recitation for Introduction to Computer Science. Answered questions, conducted code reviews and graded projects.</section>
-				</div>
- -->			</section>
-
-			<section class="resume-section" ></section>
-		</div>
-	</body>
+    <!-- Projects -->
+    <div>
+      <div class="section-header">Projects</div>
+      <div class="grid grid-cols-1 md:grid-cols-2 print:!grid-cols-2 gap-1">
+        <div>
+          <div><a href="https://github.com/teampavement/pavement-dashboard" class="text-purple-700">Pavement</a></div>
+          <div>Founded parking management company, piloted with Asbury Park, NJ</div>
+          <div class="tech-stack">react, leaflet, postgis</div>
+          <div class="italic">Developed the product, relationship w/ city parking manager, and the web app + cleaned/restructured GIS data</div>
+        </div>
+        <div>
+          <div><a href="https://github.com/indraneel/sustainability-dashboard/" class="text-purple-700">Dashability</a></div>
+          <div><a href="https://web.archive.org/web/20211020153444/https://blog.grdodge.org/2017/04/19/sustainable-jersey-15-sustainable-solutions-to-community-challenges/" >2nd Place in a 2017 NJ civic engagement hackathon</a></div>
+          <div class="tech-stack">ES6 (React, Redux), Python (Flask)</div>
+        </div>
+      </div>
+    </div>
+  </body>
 </html>

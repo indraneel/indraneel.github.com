@@ -1,55 +1,83 @@
----
-layout: default
-title: home
----
-
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<html>
   <head>
-      <script type="text/javascript">var _sf_startpt=(new Date()).getTime()</script>
- <meta name="viewport" content="width=device-width; initial-scale=1.0; maximum-scale=1.0;">
-    <meta content="text/html; charset=utf-8" http-equiv="Content-Type" />
-    <meta content="en-us" http-equiv="Content-Language" />
-    <meta content="Indraneel Purohit IN TECHNICOLOR!." name="description" />
-    <link href="/favicon.ico" rel="shortcut icon" type="image/x-icon" />
-    <link href="/css/screen.css" media="screen, projection" rel="stylesheet" type="text/css" />
-    <link rel="alternate" type="application/atom+xml" title="Indraneel Purohit - Atom" href="/atom.xml" />
-    <title>indraneelpurohit.com</title>
-    <script type="text/javascript">
-  var _gaq = _gaq || [];
-  _gaq.push(['_setAccount', 'UA-18477555-1']);
-  _gaq.push(['_trackPageview']);
+    <title>Indraneel Purohit</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="./tailwind-3.4.15.css"></script>
+    <style>
+      body {
+        font-family: sans-serif;
+        font-size: 12px;
+      }
 
-  (function() {
-    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
-    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
-    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
-  })();
-</script>
+      .section-header {
+        background-color: #1e3a8a;
+        color: #fde047;
+        padding: 0px 4px;
+        margin-bottom: 2px;
+        font-size: 13px;
+      }
 
+      h1 {
+        font-size: 24px;
+        margin-bottom: 4px;
+      }
+
+      body a {
+        color: #1e40af;
+        text-decoration: none;
+        transition: color 0.2s ease;
+      }
+
+      body a:hover {
+        color: #1e3a8a;
+      }
+    </style>
   </head>
-  <body>
-    <header>
-      <div id="blurb">
-    </div>
+  <body class="max-w-[8.5in] mx-auto p-3">
+    <!-- Header -->
+    <header class="flex flex-col md:flex-row justify-between items-center mb-8">
+      <h1 class="font-normal"><a href="/">Indraneel Purohit</h1>
+      <nav class="flex space-x-6">
+        <a href="/resume.html" class="nav-link">Resume</a>
+      </nav>
     </header>
-    <div id="wrapper">
-      <div class="post">
-      <ul>
-        {% for post in site.posts limit:5 %}
-        <li>
-            <span class="date">
-              <span class="day">{{ post.date | date: '%d' }}</span>
-              <span class="month"><abbr>{{ post.date | date: '%b' }}</abbr></span>
-              <span class="year">{{ post.date | date: '%Y' }}</span>
-            </span>—
-          <a href="{{ post.url }}" title="{{ post.title }}">
-            <span class="title">{{ post.title }}</span>
-          </a>
-        </li>
-        {% endfor %}
-      </ul>
+    
+    <div class="mb-8">
+        
+    </div>
+
+    <!-- Links -->
+    <div class="mb-8">
+      <!-- <div class="section-header">Links</div> -->
+      <div class="mt-4">
+        tech for good, software, transit, democracy
+        <div>
+            <a href="https://bsky.app/profile/indraneel.org">Bluesky</a> | <a href="https://x.com/indraneel24">Twitter</a> | <a href="http://github.com/indraneel">Github</a>  | <a href="">Linkedin</a>  
+        </div>
       </div>
     </div>
+
+    <!-- Projects -->
+    <div class="mb-8">
+      <div class="section-header">Projects</div>
+      <div class="mt-4">
+      </div>
+    </div>
+
+    <!-- Talks -->
+    <div class="mb-8">
+      <div class="section-header">Talks</div>
+      <div class="mt-4">
+      </div>
+    </div>
+
+    <!-- Writing -->
+    <div class="mb-8">
+      <div class="section-header">Writing</div>
+      <div class="mt-4">
+      </div>
+    </div>
+
   </body>
 </html>
