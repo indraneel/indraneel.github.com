@@ -37,7 +37,7 @@
   <body class="max-w-[8.5in] mx-auto p-3">
     <!-- Header -->
     <header class="flex flex-row justify-between items-center mb-8">
-      <h1 class="font-normal"><a href="/">Indraneel Purohit</h1>
+      <h1 class="font-normal"><a href="/">Indraneel Purohit</a></h1>
       <nav class="flex space-x-6">
         <a href="/resume.html" class="nav-link">Resume</a>
       </nav>
@@ -58,57 +58,101 @@
     <!-- Projects -->
     <div class="mb-8">
       <div class="section-header">Projects</div>
-      <div class="mt-4">
-        <ul>
-            <li><a href="/projects/mobility-database.html">Mobility Database</a> - frontend web app for MobilityDatabase API (2024)</li>
-            <li><a href="/projects/trec.html">TREC</a> - Transit + Climate data viz (2023-2024)</li>
-            <li><a href="/projects/redistricting-report-card.html">Redistricting Report Card</a> - Redistricting data viz (2021)</li>
-            <li><a href="/projects/princeton-gerrymandering.html">Princeton Gerrymandering Project website</a> - Gerrymandering data viz (2020)</li>
-            <li><a href="/projects/sharedstreets.html">SharedStreets Road Closure Tool</a> - geospatial web app (2018-2019)</li>
-            <li><a href="/projects/pavement-gov.html">Pavement (curb management tool)</a> - curb mgmt SaaS pilot (2018)</li>
-            <li><a href="/projects/pavement-curb.html">Pavement (curb rules viewer)</a> - JC parking rules viz tool (2018)</li>
-            <li><a href="/projects/sustainable-jersey.html">Sustainable Jersey hackathon</a> (2017)</li>
-        </ul>
+      <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <img src="/img/mobilitydatabase-feed.png" alt="Mobility Database" class="w-full h-auto mb-2" />
+          <a href="/projects/mobility-database.html">Mobility Database</a> - frontend web app for MobilityDatabase API (2024)
+        </div>
+        <div>
+          <img src="/img/trec.png" alt="TREC" class="w-full h-auto mb-2" />
+          <a href="/projects/trec.html">TREC</a> - Transit + Climate data viz (2023-2024)
+        </div>
+        <div>
+          <img src="/img/redistricting-summary.png" alt="Redistricting Report Card" class="w-full h-auto mb-2" />
+          <a href="/projects/redistricting-report-card.html">Redistricting Report Card</a> - Redistricting data viz (2021)
+        </div>
+        <div>
+          <img src="/img/redistricting-timeline-map.png" alt="Princeton Gerrymandering Project website" class="w-full h-auto mb-2" />
+          <a href="/projects/princeton-gerrymandering.html">Princeton Gerrymandering Project website</a> - Gerrymandering data viz (2020)
+        </div>
+        <div>
+          <img src="/img/sharedstreets.png" alt="SharedStreets Road Closure Tool" class="w-full h-auto mb-2" />
+          <a href="/projects/sharedstreets.html">SharedStreets Road Closure Tool</a> - geospatial web app (2018-2019)
+        </div>
+        <div>
+          <img src="/img/pavement-mgmt.png" alt="Pavement (curb management tool)" class="w-full h-auto mb-2" />
+          <a href="/projects/pavement-gov.html">Pavement (curb management tool)</a> - curb mgmt SaaS pilot (2018)
+        </div>
+        <div>
+          <img src="/img/pavement-curb.png" alt="Pavement (curb rules viewer)" class="w-full h-auto mb-2" />
+          <a href="/projects/pavement-curb.html">Pavement (curb rules viewer)</a> - JC parking rules viz tool (2018)
+        </div>
       </div>
     </div>
 
     <!-- Smaller Projects -->
     <div class="mb-8">
       <div class="section-header">Prototypes & Smaller Projects</div>
-      <div class="mt-4">
-        <ul>
-            <li><a href="https://github.com/indraneel/instapaper-viewer">Instapaper Viewer - web app to manage Instapaper bookmarks  (2024) [svelte, node.js]</li>
-            <li><a href="https://github.com/indraneel/transit-feed-etl">Transit feeds ETL</a> - using Dagster to pull GTFS-RT data every minute and save as geoparquet files (2024) [dagster]</li>
-            <li><a href="https://github.com/indraneel/wifi-heatmap-generator/">Wifi Heatmap generator</a> - tool to make a heatmap of wifi signal strength to figure out where to place additional node in home mesh network (2024) [js] </li>
-            <li><a href="https://observablehq.com/d/e19e5be583f2a690#cell-628">SNL data exploration</a> - finding the funniest SNL cast (2024) [js]</li>
-            <li><a href="https://observablehq.com/d/04c5ac5c29c29a41">NJ Transit stops + inequality</a> - transit + census data data viz, inspired by the <a href="https://projects.newyorker.com/story/subway/">classic New Yorker viz</a> (2024) [d3]</li>
-            <li><a href="http://atlaatlas.com/">Avatar The Last Airbender Atlas</a> Georeferenced a map from an animated series and made a scrollytelling piece with it  (2020) [qgis, js]</li>
-        </ul>
+      <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <img src="https://github.com/indraneel/instapaper-viewer/raw/master/instapaper-viewer.png" alt="Instapaper Viewer" class="w-full h-auto mb-2" />
+          <a href="https://github.com/indraneel/instapaper-viewer">Instapaper Viewer</a> - web app to manage Instapaper bookmarks  (2024) [svelte, node.js]
+        </div>
+        <div>
+          <img src="https://github.com/indraneel/transit-feed-etl/blob/main/demo.gif?raw=true" alt="Transit feeds ETL" class="w-full h-auto mb-2" />
+          <a href="https://github.com/indraneel/transit-feed-etl">Transit feeds ETL</a> - using Dagster to pull GTFS-RT data every minute and save as geoparquet files (2024) [dagster]
+        </div>
+        <div>
+          <img src="https://github.com/indraneel/wifi-heatmap-generator/raw/main/heatmap.png" alt="Wifi Heatmap generator" class="w-full h-auto mb-2" />
+          <a href="https://github.com/indraneel/wifi-heatmap-generator/">Wifi Heatmap generator</a> - tool to make a heatmap of wifi signal strength to figure out where to place additional node in home mesh network (2024) [js]
+        </div>
+        <div>
+          <img src="/img/snl-data.png" alt="SNL data exploration" class="w-full h-auto mb-2" />
+          <a href="https://observablehq.com/d/e19e5be583f2a690#cell-628">SNL data exploration</a> - finding the funniest SNL cast (2024) [js]
+        </div>
+        <div>
+          <img src="/img/njt-inequality.png" alt="NJ Transit stops + inequality" class="w-full h-auto mb-2" />
+          <a href="https://observablehq.com/d/04c5ac5c29c29a41">NJ Transit stops + inequality</a> - transit + census data data viz, inspired by the <a href="https://projects.newyorker.com/story/subway/">classic New Yorker viz</a> (2024) [d3]
+        </div>
+        <div>
+          <img src="/img/atla.png" alt="Avatar The Last Airbender Atlas" class="w-full h-auto mb-2" />
+          <a href="http://atlaatlas.com/">Avatar The Last Airbender Atlas</a> Georeferenced a map from an animated series and made a scrollytelling piece with it  (2020) [qgis, js]
+        </div>
       </div>
     </div>
 
     <!-- Talks -->
     <div class="mb-8">
       <div class="section-header">Talks</div>
-      <div class="mt-4">
-        <ul>
-            <li><a href="https://maps.un.org/un-maps-conferences/2024/presentations/switching-pmtiles-map-based-web-apps">Switching to PMTiles for Map-Based Web Apps</a> (UN Maps, May 2024)</li>
-            <li><a href="https://www.youtube.com/watch?v=rs7kdZOsCxQ">Switching to PM Tiles</a> (State of the Map US, June 2023)</li>
-            <li><a href="https://www.youtube.com/watch?v=Dm08YaTlnSs">Championing fair election maps with open data, law, and math</a> (Mapbox, October 2020)</li>
-            <li><a href="https://www.youtube.com/watch?v=ROemNM73E2c">SharedStreets Road Closures</a> (State of the Map US, September 2019)</li>
-            <li><a href="https://www.youtube.com/watch?v=LUbZs_Kv-Pg">SharedStreets Road Closures</a> (Transit Techies NYC, September 2019)</li>
-        </ul>
+      <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <a href="https://maps.un.org/un-maps-conferences/2024/presentations/switching-pmtiles-map-based-web-apps">Switching to PMTiles for Map-Based Web Apps</a> (UN Maps, May 2024)
+        </div>
+        <div>
+          <a href="https://www.youtube.com/watch?v=rs7kdZOsCxQ">Switching to PM Tiles</a> (State of the Map US, June 2023)
+        </div>
+        <div>
+          <a href="https://www.youtube.com/watch?v=Dm08YaTlnSs">Championing fair election maps with open data, law, and math</a> (Mapbox, October 2020)
+        </div>
+        <div>
+          <a href="https://www.youtube.com/watch?v=ROemNM73E2c">SharedStreets Road Closures</a> (State of the Map US, September 2019)
+        </div>
+        <div>
+          <a href="https://www.youtube.com/watch?v=LUbZs_Kv-Pg">SharedStreets Road Closures</a> (Transit Techies NYC, September 2019)
+        </div>
       </div>
     </div>
 
     <!-- Writing -->
     <div class="mb-8">
       <div class="section-header">Writing</div>
-      <div class="mt-4">
-        <ul>
-            <li><a href="https://www.twosigma.com/articles/increasing-access-to-global-transportation-data/">Increasing Access to Global Transportation Data</a> (Two Sigma Data Clinic, 2024)</li>
-            <li><a href="https://www.twosigma.com/articles/web-mapping-with-pmtiles/">Web Mapping with PMTiles</a> (Two Sigma Data Clinic, 2023)</li>
-        </ul>
+      <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <a href="https://www.twosigma.com/articles/increasing-access-to-global-transportation-data/">Increasing Access to Global Transportation Data</a> (Two Sigma Data Clinic, 2024)
+        </div>
+        <div>
+          <a href="https://www.twosigma.com/articles/web-mapping-with-pmtiles/">Web Mapping with PMTiles</a> (Two Sigma Data Clinic, 2023)
+        </div>
       </div>
     </div>
 
