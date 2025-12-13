@@ -66,6 +66,7 @@ function convertFile(mdFilePath) {
     <title>${title} | Indraneel Purohit</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="${tailwindPath}"></script>
+    <script defer src="https://cloud.umami.is/script.js" data-website-id="beb3212e-74fd-4d93-aeee-f27a860f0f19"></script>
     <style>
       body {
         font-family: sans-serif;
