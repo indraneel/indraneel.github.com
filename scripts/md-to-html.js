@@ -6,6 +6,7 @@ const { marked } = require('marked');
 const matter = require('gray-matter');
 
 const repoRoot = path.resolve(__dirname, '..');
+const siteUrl = 'https://indraneel.org';
 
 // Find all .md files recursively in a directory
 function findMdFiles(dir) {
@@ -21,6 +22,21 @@ function findMdFiles(dir) {
     }
   }
   return files;
+}
+
+// Escape XML special characters
+function escapeXml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+// Format date as RFC 822 (required by RSS)
+function toRFC822(date) {
+  return date.toUTCString();
 }
 
 // Convert Obsidian wiki-link images to standard markdown
@@ -65,6 +81,7 @@ function convertFile(mdFilePath) {
   <head>
     <title>${title} | Indraneel Purohit</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="alternate" type="application/rss+xml" title="Indraneel Purohit" href="/feed.xml" />
     <script src="${tailwindPath}"></script>
     <script defer src="https://cloud.umami.is/script.js" data-website-id="beb3212e-74fd-4d93-aeee-f27a860f0f19"></script>
     <style>
@@ -193,21 +210,28 @@ function convertFile(mdFilePath) {
 }
 
 // Get metadata for all posts
-function getAllPosts() {
+function getAllPosts(includeContent = false) {
   const postsDir = path.join(repoRoot, 'posts');
   const mdFiles = findMdFiles(postsDir);
 
   const posts = [];
   for (const mdFile of mdFiles) {
-    const content = fs.readFileSync(mdFile, 'utf8');
-    const { data: frontmatter } = matter(content);
+    const rawContent = fs.readFileSync(mdFile, 'utf8');
+    const { data: frontmatter, content: markdownContent } = matter(rawContent);
     const htmlPath = '/' + path.relative(repoRoot, mdFile).replace(/\.md$/, '.html');
 
-    posts.push({
+    const post = {
       title: frontmatter.title || path.basename(mdFile, '.md'),
       date: frontmatter.date ? new Date(frontmatter.date) : null,
       url: htmlPath
-    });
+    };
+
+    if (includeContent) {
+      const processedContent = convertObsidianImages(markdownContent);
+      post.content = marked.parse(processedContent);
+    }
+
+    posts.push(post);
   }
 
   // Sort by date descending
@@ -248,6 +272,43 @@ function updatePostsIndex() {
   console.log(`Updated posts.html with ${posts.length} post(s).`);
 }
 
+// Generate RSS feed
+function generateRSSFeed() {
+  const posts = getAllPosts(true); // Include content for feed
+  const feedPath = path.join(repoRoot, 'feed.xml');
+  const now = new Date();
+
+  const items = posts.map(post => {
+    const fullUrl = `${siteUrl}${post.url}`;
+    const pubDate = post.date ? toRFC822(post.date) : toRFC822(now);
+
+    return `    <item>
+      <title>${escapeXml(post.title)}</title>
+      <link>${fullUrl}</link>
+      <guid isPermaLink="true">${fullUrl}</guid>
+      <pubDate>${pubDate}</pubDate>
+      <description><![CDATA[${post.content || ''}]]></description>
+    </item>`;
+  }).join('\n');
+
+  const feed = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Indraneel Purohit</title>
+    <link>${siteUrl}</link>
+    <description>Posts from Indraneel Purohit</description>
+    <language>en-us</language>
+    <lastBuildDate>${toRFC822(now)}</lastBuildDate>
+    <atom:link href="${siteUrl}/feed.xml" rel="self" type="application/rss+xml"/>
+${items}
+  </channel>
+</rss>
+`;
+
+  fs.writeFileSync(feedPath, feed);
+  console.log(`Generated feed.xml with ${posts.length} post(s).`);
+}
+
 // Main logic
 const mdFilePath = process.argv[2];
 
@@ -255,6 +316,7 @@ if (mdFilePath) {
   // Convert single file
   convertFile(mdFilePath);
   updatePostsIndex();
+  generateRSSFeed();
 } else {
   // Find all .md files without corresponding .html
   const postsDir = path.join(repoRoot, 'posts');
@@ -279,6 +341,7 @@ if (mdFilePath) {
     console.log(`Converted ${converted} file(s).`);
   }
 
-  // Always update posts index
+  // Always update posts index and RSS feed
   updatePostsIndex();
+  generateRSSFeed();
 }
