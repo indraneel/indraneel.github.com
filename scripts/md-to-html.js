@@ -66,9 +66,20 @@ function convertFile(mdFilePath) {
     month: 'long',
     day: 'numeric'
   }) : '';
+  const linkUrl = frontmatter.link || '';
+  const permalink = '/' + path.relative(repoRoot, mdFilePath).replace(/\.md$/, '.html');
 
   // Convert markdown to HTML
   const htmlContent = marked.parse(content);
+
+  const titleHtml = linkUrl
+    ? `<a href="${linkUrl}">${title}</a> <a href="${permalink}" class="text-yellow-200">∞</a>`
+    : title;
+  const dateHtml = date
+    ? (linkUrl
+        ? `<div class="text-gray-500 text-xs mt-1">${date} · <a href="${permalink}">Permalink</a></div>`
+        : `<div class="text-gray-500 text-xs mt-1">${date}</div>`)
+    : '';
 
   // Calculate relative path to root for assets
   const mdDir = path.dirname(path.resolve(mdFilePath));
@@ -176,6 +187,11 @@ function convertFile(mdFilePath) {
         height: auto;
         margin: 12px 0;
       }
+
+      .post-content {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
     </style>
   </head>
   <body class="max-w-[8.5in] mx-auto p-3">
@@ -191,8 +207,8 @@ function convertFile(mdFilePath) {
 
     <!-- Post -->
     <div class="mb-8">
-      <div class="section-header">${title}</div>
-      ${date ? `<div class="text-gray-500 text-xs mt-1">${date}</div>` : ''}
+      <div class="section-header">${titleHtml}</div>
+      ${dateHtml}
       <div class="mt-4 post-content">
         ${htmlContent}
       </div>
@@ -223,7 +239,8 @@ function getAllPosts(includeContent = false) {
     const post = {
       title: frontmatter.title || path.basename(mdFile, '.md'),
       date: frontmatter.date ? new Date(frontmatter.date) : null,
-      url: htmlPath
+      url: htmlPath,
+      link: frontmatter.link || ''
     };
 
     if (includeContent) {
@@ -258,7 +275,10 @@ function updatePostsIndex() {
       month: 'long',
       day: 'numeric'
     }) : '';
-    return `          <li class="mb-2"><a href="${post.url}">${post.title}</a>${dateStr ? ` <span class="text-gray-500">(${dateStr})</span>` : ''}</li>`;
+    const titleLink = post.link
+      ? `<a href="${post.link}">${post.title}</a> <a href="${post.url}" class="text-gray-400">∞</a>`
+      : `<a href="${post.url}">${post.title}</a>`;
+    return `          <li class="mb-2">${titleLink}${dateStr ? ` <span class="text-gray-500">(${dateStr})</span>` : ''}</li>`;
   }).join('\n');
 
   // Read and update posts.html
@@ -279,15 +299,20 @@ function generateRSSFeed() {
   const now = new Date();
 
   const items = posts.map(post => {
-    const fullUrl = `${siteUrl}${post.url}`;
+    const permalink = `${siteUrl}${post.url}`;
+    const itemLink = post.link || permalink;
     const pubDate = post.date ? toRFC822(post.date) : toRFC822(now);
+    const description = post.link
+      ? `${post.content || ''}\n<p><a href="${permalink}">Permalink</a></p>`
+      : (post.content || '');
+    const guidAttr = post.link ? 'isPermaLink="false"' : 'isPermaLink="true"';
 
     return `    <item>
       <title>${escapeXml(post.title)}</title>
-      <link>${fullUrl}</link>
-      <guid isPermaLink="true">${fullUrl}</guid>
+      <link>${escapeXml(itemLink)}</link>
+      <guid ${guidAttr}>${permalink}</guid>
       <pubDate>${pubDate}</pubDate>
-      <description><![CDATA[${post.content || ''}]]></description>
+      <description><![CDATA[${description}]]></description>
     </item>`;
   }).join('\n');
 
