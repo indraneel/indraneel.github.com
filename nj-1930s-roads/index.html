@@ -1,0 +1,706 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- maximum-scale/user-scalable stop Safari zooming the *page*; MapLibre still
+     pinch-zooms the map itself, which is touch-driven rather than gesture-driven. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>NJ toll roads over 1930s aerials</title>
+<link rel="stylesheet" href="vendor/maplibre-gl.css">
+<style>
+  /* Overpass is drawn from the FHWA Series letterforms the real signs use, and
+     unlike Highway Gothic it can be redistributed. If the files are missing the
+     stack below falls through on its own, so this is safe to ship either way. */
+  @font-face {
+    font-family: 'Overpass'; font-style: normal; font-weight: 400; font-display: swap;
+    src: url('vendor/overpass-400.woff2') format('woff2');
+  }
+  @font-face {
+    font-family: 'Overpass'; font-style: normal; font-weight: 700; font-display: swap;
+    src: url('vendor/overpass-700.woff2') format('woff2');
+  }
+
+  :root {
+    --ink: #f2efe6;
+    --ink-dim: rgba(242, 239, 230, .62);
+    --panel: rgba(12, 14, 13, .82);
+    --edge: rgba(255, 255, 255, .14);
+
+    /* Set per network by app.js; these are the Turnpike defaults. */
+    --net: #007a33;
+    --net-gold: #ffd100;
+    --net-light: #59a87a;
+    --net-dark: #004f21;
+
+    --sign-green: #006747;
+    --sign-blue: #003865;
+
+    /* Controls are not map data, and were painted in the road's own gold, which
+       put the brightest colour on the map on the buttons rather than on the
+       road. This blue belongs to nothing on the ground: there is no blue in a
+       1930s panchromatic photograph, the guide signs are green and the route is
+       green and gold, so a lit control cannot be mistaken for a lit road. */
+    --accent: #7cc4ff;
+    --accent-ink: #06243c;
+
+    --ui: ui-sans-serif, -apple-system, "Helvetica Neue", sans-serif;
+    --sign-font: Overpass, "Roboto Condensed", Inter, ui-sans-serif, -apple-system, sans-serif;
+
+    --gap: 12px;
+    --safe-t: max(10px, env(safe-area-inset-top));
+    --safe-r: max(var(--gap), env(safe-area-inset-right));
+    --safe-b: max(var(--gap), env(safe-area-inset-bottom));
+    --safe-l: max(var(--gap), env(safe-area-inset-left));
+
+    /* Bottom-right stack: transport pill, then the view switch above it. The
+       scrubber has to clear both, so its floor is derived from these rather
+       than guessed twice. */
+    --transport-h: 52px;
+    --views-h: 56px;
+
+    /* The next-exit card now heads the right-hand column, and the scrubber
+       starts under it. Its height is reserved rather than measured: measuring
+       would resize the track every time the card changed, and the card changes
+       most often while a finger is on that track. A tall card is 99px. */
+    --card-top: var(--safe-t);
+    --card-h: 104px;
+  }
+
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none;
+    background: #111; color: var(--ink); touch-action: manipulation;
+    font: 13px/1.45 var(--ui);
+    -webkit-user-select: none; user-select: none;
+  }
+  #map { position: absolute; inset: 0; background: #111; }
+
+  /* --------------------------------------------------------- road switch -- */
+  /* Which road, as a two-position switch rather than a title: the point of the
+     top of the screen is that there are two of these to look at, and a switch
+     says so where a label only names the one you are already on. */
+  #road-switch {
+    position: absolute; z-index: 460; top: var(--safe-t);
+    left: 50%; transform: translateX(-50%);
+    display: flex; padding: 3px; border-radius: 999px;
+    background: var(--panel); backdrop-filter: blur(6px);
+    border: 1px solid var(--edge); isolation: isolate;
+    transition: opacity .5s ease;
+  }
+  #road-switch button {
+    position: relative; z-index: 1; border: 0; background: none; cursor: pointer;
+    padding: 7px 18px; border-radius: 999px; color: var(--ink-dim);
+    font: 700 11.5px/1 var(--ui); letter-spacing: .09em; text-transform: uppercase;
+    transition: color .22s ease;
+  }
+  #road-switch button[aria-selected="true"] { color: #fff; }
+  #road-slider {
+    position: absolute; z-index: 0; top: 3px; bottom: 3px; left: 0; width: 0;
+    border-radius: 999px; background: var(--net);
+    box-shadow: 0 1px 6px rgba(0, 0, 0, .5);
+    transition: transform .26s cubic-bezier(.4, 0, .2, 1), width .26s, background-color .3s;
+  }
+  /* Once the road is moving the switch has said its piece. */
+  body.driving #road-switch { opacity: .48; }
+
+  /* ----------------------------------------------------------- top left -- */
+  /* Title and minimap, as one column so the map does not have to know how tall
+     the title wrapped to. Says what this is: a map of two roads that did not
+     exist when the photograph under them was taken needs one line of
+     explanation more than most maps do. */
+  #topleft {
+    position: absolute; z-index: 455; top: var(--safe-t); left: var(--safe-l);
+    display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+    pointer-events: none;
+  }
+  /* Sized against the road switch rather than against the viewport: the switch
+     is centred, so what the title may have is everything to the left of it.
+     border-box because the limit is on the whole card - a content-box max-width
+     is 18px of padding and border wider than it says it is, which is exactly
+     enough to run under the switch on a phone. */
+  #title-card {
+    box-sizing: border-box; max-width: min(300px, calc(50vw - 88px));
+    padding: 8px 11px 9px; border-radius: 8px;
+    background: var(--panel); backdrop-filter: blur(6px);
+    border: 1px solid var(--edge); box-shadow: 0 6px 20px rgba(0, 0, 0, .4);
+  }
+  /* The card is the way in to the long explanation, so it has to look like a
+     control rather than like a caption. */
+  #title-card { pointer-events: auto; cursor: pointer; text-align: left; }
+  #title-card:hover, #title-card:focus-visible { border-color: rgba(255, 255, 255, .34); outline: none; }
+  #title-card:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+  #title-card h1 {
+    margin: 0; font: 700 13.5px/1.25 var(--ui); letter-spacing: .01em; color: var(--ink);
+  }
+  #title-more {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 13px; height: 13px; margin-left: 5px; vertical-align: -1px;
+    border: 1px solid var(--ink-dim); border-radius: 50%;
+    font: 700 9px/1 var(--ui); color: var(--ink-dim);
+  }
+  #title-card p {
+    margin: 4px 0 0; font-size: 11px; line-height: 1.35; color: var(--ink-dim);
+  }
+  #title-card .short { display: none; }
+
+  /* ------------------------------------------------------------- minimap -- */
+  /* Where you are on the whole road while the camera is down on it. Drawn from
+     the geometry already in memory rather than from tiles - it costs no network
+     at all, which is the only reason it can redraw every frame. */
+  #minimap {
+    display: none; position: relative; padding: 5px; border-radius: 8px;
+    background: var(--panel); backdrop-filter: blur(6px);
+    border: 1px solid var(--edge); box-shadow: 0 6px 20px rgba(0, 0, 0, .4);
+    animation: mini-in .3s ease both;
+  }
+  #minimap.on { display: block; }
+  #minimap canvas { display: block; }
+  @keyframes mini-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; } }
+
+  /* ------------------------------------------------------------ next exit -- */
+  /* The one thing a driver actually wants, in the place navigation apps have
+     taught everyone to look for it: distance first, exit number second,
+     destination under it. It heads the right-hand column - the scrubber runs
+     down from under it - so the whole of "where am I on this road" is one
+     glance in one place. Unlike the gantry signs out on the map it never
+     moves, never collides and never goes off-screen, which is the point of
+     pinning it. It is a guide sign rather than the dark card CarPlay uses,
+     because everything else on this map that names a place is already MUTCD
+     green. */
+  #next-exit {
+    position: absolute; z-index: 455;
+    top: var(--card-top); right: var(--safe-r);
+    min-width: 156px; max-width: min(56vw, 290px); box-sizing: border-box;
+    padding: 7px 10px 8px;
+    border-radius: 6px; border: 2px solid #fff;
+    background: var(--sign-green);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .5);
+    font-family: var(--sign-font); color: #fff;
+    pointer-events: none;
+    opacity: 0; transform: translateY(-6px);
+    transition: opacity .17s ease, transform .17s ease;
+  }
+  #next-exit.on { opacity: 1; transform: none; }
+  #next-exit[data-kind="toll"] { background: var(--sign-blue); }
+  #ne-head { display: flex; align-items: baseline; gap: 10px; }
+  #ne-dist {
+    font-size: 20px; font-weight: 700; line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+  #ne-badge {
+    margin-left: auto; padding: 1px 7px 2px; border-radius: 3px;
+    border: 1.5px solid rgba(255, 255, 255, .85);
+    font-size: 13px; font-weight: 700; white-space: nowrap;
+  }
+  #ne-badge:empty { display: none; }
+  #ne-dest {
+    margin-top: 3px; font-size: 13px; line-height: 1.25;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden; overflow-wrap: anywhere;
+  }
+  #ne-tag {
+    margin-top: 5px; padding-top: 4px; border-top: 1px solid rgba(255, 255, 255, .38);
+    font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; opacity: .85;
+  }
+  #ne-tag:empty { display: none; }
+
+  /* ------------------------------------------------------------- scrubber -- */
+  /* Vertical, hard against the right edge and running the whole height between
+     the switch and the bottom-right stack. Built by hand rather than from
+     <input type=range>: a rotated range input is a hit-testing and reflow
+     liability, and this one has to hold exactly still under a dragging finger. */
+  #scrubber {
+    position: absolute; z-index: 450; right: var(--safe-r);
+    top: calc(var(--card-top) + var(--card-h) + 8px);
+    bottom: calc(var(--safe-b) + var(--transport-h) + var(--views-h) + 16px);
+    width: 44px;
+    display: flex; align-items: center; justify-content: center;
+    touch-action: none; cursor: pointer;
+  }
+  #scrubber:focus { outline: none; }
+  /* The track is the road, drawn the way the map draws it: pale green for the
+     stretch still to come, deeper green with the gold centre line down it for
+     the stretch already driven. Wide enough to hold a centre line - it is the
+     one place on screen where the whole route is always in view at once. */
+  #scrub-track {
+    position: relative; width: 14px; height: 100%;
+    border-radius: 7px; background: var(--net-light);
+    transition: background-color .3s;
+    /* Dark casing, so the track reads over bright imagery as well as dark. */
+    box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .55), 0 1px 6px rgba(0, 0, 0, .5),
+                inset 0 0 0 1px rgba(255, 255, 255, .13);
+  }
+  /* Filled from the bottom up: bottom = start of the run. */
+  /* Band and centre line in one element: a 4 px gold stripe down the middle of
+     a 14 px track, near enough the ratio the map paints them at. Wider than
+     that and the track reads as a gold bar with green edges rather than as a
+     road with a centre line. */
+  #scrub-fill {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 0;
+    border-radius: 7px;
+    background: linear-gradient(90deg,
+      var(--net-dark) 0 5px, var(--net-gold) 5px 9px, var(--net-dark) 9px 100%);
+  }
+  /* Driving south the road is revealed from the north end, so the gold grows
+     down the track from the top rather than up from the bottom. */
+  #scrub-track.south #scrub-fill { bottom: auto; top: 0; }
+  /* border-box, or the 2px border lands outside the 20px the margins are
+     centring and the whole thumb sits 2px up and to the right of its value -
+     which is small enough to look like sloppiness and big enough to see. */
+  #scrub-thumb {
+    position: absolute; left: 50%; bottom: 0; box-sizing: border-box;
+    width: 20px; height: 20px;
+    margin-left: -10px; margin-bottom: -10px; border-radius: 50%;
+    background: var(--net-gold); border: 2px solid #111;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .55);
+  }
+  #scrubber:focus-visible #scrub-thumb { box-shadow: 0 0 0 3px rgba(255, 255, 255, .5); }
+  /* Rides with the thumb rather than sitting in a panel, so the number is where
+     your eye already is, and dressed as a guide sign because that is what it is
+     reading out - the same green, the same white rule, the same letterforms as
+     the card at the top of this column and the gantries out on the map.
+     Centred on the thumb by translate rather than by a hand-computed margin:
+     the readout changes height when the exits appear, and a fixed margin only
+     centres one of the two heights. */
+  #scrub-readout {
+    position: absolute; right: 28px; top: 50%; transform: translateY(-50%);
+    padding: 4px 9px 5px; border-radius: 5px; white-space: nowrap; text-align: right;
+    background: var(--sign-green); border: 1.5px solid rgba(255, 255, 255, .85);
+    box-shadow: 0 3px 14px rgba(0, 0, 0, .5);
+    font-family: var(--sign-font); color: #fff;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
+  #scrub-mi { font-size: 13px; font-weight: 700; line-height: 1.1; }
+  /* The interchange either side of the head. Hidden until it is worth reading -
+     while you are dragging, or as you actually go past one. */
+  #scrub-exits {
+    display: none; font-size: 10.5px; letter-spacing: .04em; margin-bottom: 2px;
+    padding-bottom: 2px; border-bottom: 1px solid rgba(255, 255, 255, .38);
+  }
+  #scrub-readout.has-exits #scrub-exits { display: block; }
+  #scrub-exits b { font-weight: 700; }
+  #scrub-exits i { font-style: normal; opacity: .6; padding: 0 3px; }
+  #scrub-exits u { text-decoration: none; opacity: .62; font-weight: 400; }
+
+  /* ---------------------------------------------------------- speedometer -- */
+  /* On its own over the photograph the dial was a few thin strokes on whatever
+     happened to be underneath - unreadable over pale ground, which is half of
+     1930s New Jersey. It sits on glass now, like everything else that is not
+     the map, and says what it is: a dial with no units on it is not
+     self-evidently a speed. */
+  #speedo {
+    position: absolute; z-index: 450; bottom: calc(var(--safe-b) + 2px);
+    left: 50%; transform: translateX(-50%);
+    width: 148px; height: 94px; padding: 6px 8px 8px; box-sizing: border-box;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, .13); backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, .26);
+    box-shadow: 0 6px 22px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .22);
+    touch-action: none; cursor: pointer;
+  }
+  #speedo svg { display: block; width: 132px; height: 74px; overflow: visible; }
+  #speedo .dial { fill: none; stroke: rgba(255, 255, 255, .22); stroke-width: 7; stroke-linecap: round; }
+  #speedo .lit  { fill: none; stroke: var(--accent); stroke-width: 7; stroke-linecap: round; }
+  #speedo .knob { fill: var(--accent); stroke: #111; stroke-width: 2; }
+  #speedo .hit  { fill: none; stroke: transparent; stroke-width: 46; }
+  #speedo .tick { fill: rgba(255, 255, 255, .45); }
+  #speedo .tick.on { fill: var(--accent); }
+  /* Top left, in the corner the arc does not reach. */
+  #speedo-cap {
+    position: absolute; top: 5px; left: 11px; pointer-events: none;
+    font: 700 8px/1 var(--ui); letter-spacing: .13em; text-transform: uppercase;
+    color: rgba(255, 255, 255, .66);
+  }
+  #speedo-label {
+    position: absolute; left: 0; right: 0; bottom: 7px; text-align: center;
+    color: var(--ink); pointer-events: none;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, .85);
+  }
+  #speed-notch { font: 700 17px/1 var(--ui); font-variant-numeric: tabular-nums; }
+  /* The one part of the dial you can press: it re-arms the automatic speed
+     after a manual override, which otherwise has no way back. */
+  #speed-mode {
+    display: inline-block; margin-top: 2px; padding: 1px 6px; border-radius: 3px;
+    font: 700 8.5px/1.35 var(--ui); letter-spacing: .1em;
+    color: var(--ink-dim); border: 1px solid transparent;
+    pointer-events: auto; cursor: pointer;
+  }
+  #speed-mode.manual { color: var(--accent-ink); background: var(--accent); border-color: transparent; }
+
+  /* ------------------------------------------------------------ transport -- */
+  #transport {
+    position: absolute; z-index: 450; right: var(--safe-r); bottom: var(--safe-b);
+    display: flex; gap: 6px; padding: 5px; border-radius: 999px;
+    background: var(--panel); backdrop-filter: blur(6px); border: 1px solid var(--edge);
+  }
+  #transport button {
+    width: 42px; height: 42px; border: 0; border-radius: 50%; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255, 255, 255, .1); color: var(--ink);
+  }
+  #transport button#play { background: var(--accent); color: var(--accent-ink); }
+  #transport button:active { transform: translateY(1px); }
+  /* No blanket fill here. Half these icons are stroked outlines with
+     fill="none" on the root, and a CSS fill beats that presentation attribute -
+     which is what turned the reset arrow into a solid blob. Each icon now
+     declares its own paint. */
+  #transport svg { width: 18px; height: 18px; }
+
+  /* ---------------------------------------------------------------- views -- */
+  /* The three ways of looking at the road, as one three-position control
+     stacked directly above the transport pill. Named as well as drawn: three
+     icons in a row is a guessing game, and these three change the whole
+     behaviour of the map rather than toggling one thing. */
+  #views {
+    position: absolute; z-index: 450; right: var(--safe-r);
+    bottom: calc(var(--safe-b) + var(--transport-h) + 8px);
+    display: flex; gap: 4px; padding: 4px; border-radius: 16px;
+    background: var(--panel); backdrop-filter: blur(6px); border: 1px solid var(--edge);
+  }
+  #views button {
+    min-width: 54px; height: 46px; padding: 0 7px; border: 0; border-radius: 12px;
+    cursor: pointer; display: flex; flex-direction: column; gap: 2px;
+    align-items: center; justify-content: center;
+    background: rgba(255, 255, 255, .08); color: var(--ink);
+  }
+  #views button.on { background: var(--accent); color: var(--accent-ink); }
+  #views button:active { transform: translateY(1px); }
+  #views svg { width: 18px; height: 18px; }
+  #views .lbl {
+    font: 700 8.5px/1 var(--ui); letter-spacing: .07em; text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  /* ----------------------------------------------------------------- note -- */
+  /* Says which alignments are running. Fixed height so nothing below it moves. */
+  #note {
+    position: absolute; z-index: 440; left: 50%; transform: translateX(-50%);
+    bottom: calc(var(--safe-b) + 82px); height: 15px; line-height: 15px;
+    font-size: 11px; white-space: nowrap; color: var(--net-gold);
+    text-shadow: 0 1px 4px rgba(0, 0, 0, .9); pointer-events: none; opacity: .9;
+  }
+
+  /* --------------------------------------------------- off-screen towns -- */
+  /* A town you are passing that has gone off the screen, pinned to the edge
+     with an arrow pointing at it. Same green as the exit signs, smaller and
+     quieter - these are orientation, not destinations. */
+  #edge { position: absolute; inset: 0; z-index: 425; pointer-events: none; overflow: hidden; }
+  .edge-label {
+    position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 5px;
+    padding: 3px 8px 3px 6px; border-radius: 4px;
+    background: var(--sign-green); border: 1px solid rgba(255,255,255,.75);
+    box-shadow: 0 2px 10px rgba(0,0,0,.5);
+    font-family: var(--sign-font); font-size: 10.5px; color: #fff;
+    white-space: nowrap; max-width: 42vw;
+    will-change: transform, opacity;
+  }
+  .edge-label span { overflow: hidden; text-overflow: ellipsis; }
+  .edge-label svg { width: 10px; height: 10px; fill: #fff; flex: 0 0 auto; }
+
+  /* ---------------------------------------------------------------- signs -- */
+  /* An exit tab over the interchange, and nothing else. Where it goes is the
+     pinned card's job; which one it is, is this one's. */
+  #signs { position: absolute; inset: 0; z-index: 430; pointer-events: none; overflow: hidden; }
+  .sign {
+    position: absolute; left: 0; top: 0; display: flex; align-items: stretch;
+    max-width: 44vw; box-sizing: border-box;
+    font-family: var(--sign-font);
+    background: var(--sign-green);
+    border: 2px solid #fff; border-radius: 4px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .55);
+    will-change: transform, opacity;
+  }
+  .sign[data-kind="toll"] { background: var(--sign-blue); }
+  .sign-badge {
+    flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
+    padding: 3px 10px 4px; font-weight: 700; font-size: 17px; color: #fff;
+    letter-spacing: .01em; white-space: nowrap;
+  }
+
+  /* --------------------------------------------------------- map controls -- */
+  /* All of them top-left now: the right-hand edge belongs to the scrubber. */
+  .ctl-group button {
+    width: 29px; height: 29px; padding: 0; border: 0; border-radius: 0;
+    background: #fff; color: #2b2b2b; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ctl-group button svg { width: 17px; height: 17px; }
+  .ctl-group button.on { background: var(--accent); color: var(--accent-ink); }
+  .ctl-group button:disabled { opacity: .38; cursor: default; }
+  .ctl-group button .lbl { font: 700 9px/1 var(--ui); letter-spacing: .02em; }
+  /* Touch targets: the visual button stays on MapLibre's 29px rhythm, the
+     reachable area does not. */
+  @media (pointer: coarse) {
+    .ctl-group button { width: 36px; height: 36px; }
+    .ctl-group button svg { width: 20px; height: 20px; }
+  }
+
+  /* ----------------------------------------------------------------- about -- */
+  /* The long version, behind the title. The panel is a column: a header that
+     stays, and a body that scrolls - so the close button is reachable however
+     long the text gets and however short the screen is. */
+  #about {
+    position: fixed; inset: 0; z-index: 700; display: none;
+    align-items: center; justify-content: center; padding: 20px;
+    background: rgba(6, 8, 8, .62); backdrop-filter: blur(3px);
+  }
+  #about.on { display: flex; }
+  #about-panel {
+    display: flex; flex-direction: column; box-sizing: border-box;
+    width: min(560px, 100%); max-height: min(80vh, 760px);
+    border-radius: 14px; border: 1px solid var(--edge);
+    background: rgba(18, 21, 20, .97);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, .6);
+  }
+  #about-head {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px; border-bottom: 1px solid var(--edge);
+  }
+  #about-head h2 { margin: 0; flex: 1 1 auto; font: 700 15px/1.3 var(--ui); color: var(--ink); }
+  #about-close {
+    flex: 0 0 auto; width: 30px; height: 30px; border: 0; border-radius: 50%;
+    background: rgba(255, 255, 255, .1); color: var(--ink); cursor: pointer;
+    font: 400 17px/1 var(--ui);
+  }
+  #about-close:hover { background: rgba(255, 255, 255, .18); }
+  #about-body {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 4px 16px 18px; overscroll-behavior: contain;
+    -webkit-user-select: text; user-select: text;
+  }
+  #about-body h3 {
+    margin: 16px 0 6px; font: 700 9.5px/1 var(--ui);
+    letter-spacing: .13em; text-transform: uppercase; color: var(--accent);
+  }
+  #about-body p { margin: 0 0 8px; font-size: 12.5px; line-height: 1.55; color: var(--ink); }
+  #about-body ol, #about-body ul { margin: 0 0 8px; padding-left: 18px; }
+  #about-body li { font-size: 12.5px; line-height: 1.55; margin-bottom: 5px; color: var(--ink); }
+  #about-body .dim { color: var(--ink-dim); }
+  #about-body a { color: var(--accent); }
+
+  #warn {
+    position: absolute; z-index: 600; top: 64px; left: 50%;
+    transform: translateX(-50%); max-width: calc(100vw - 24px); box-sizing: border-box;
+    padding: 7px 12px; border-radius: 7px;
+    background: rgba(180, 60, 40, .94); font-size: 12px; display: none;
+  }
+
+  /* Head of the reveal: the navigation arrow, pointed the way you are going.
+     A dot says where; on a road that runs both ways and turns through 180
+     degrees on its way up the state, which way is the other half of it. */
+  .head { width: 26px; height: 26px; }
+  .head svg {
+    width: 100%; height: 100%; display: block;
+    fill: var(--net-gold); stroke: #111; stroke-width: 1.4; stroke-linejoin: round;
+    filter: drop-shadow(0 0 6px rgba(255, 225, 77, .55)) drop-shadow(0 2px 3px rgba(0, 0, 0, .6));
+  }
+
+  /* Two classes' worth of specificity, because MapLibre's own compact rule is
+     .maplibregl-ctrl-attrib.maplibregl-compact and it sets black text. */
+  .maplibregl-ctrl-attrib, .maplibregl-ctrl-scale,
+  .maplibregl-ctrl-attrib.maplibregl-compact {
+    background: rgba(12, 14, 13, .72) !important; color: var(--ink) !important;
+    border-color: rgba(255, 255, 255, .3);
+  }
+  .maplibregl-ctrl-attrib a { color: var(--ink); }
+  /* The (i) itself is a background-image whose path carries no fill, so it
+     paints black - invisible on a dark panel. Same glyph, white. */
+  .maplibregl-ctrl-attrib-button {
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%23ffffff%22%20fill-rule%3D%22evenodd%22%20viewBox%3D%220%200%2020%2020%22%3E%3Cpath%20d%3D%22M4%2010a6%206%200%201%200%2012%200%206%206%200%201%200-12%200m5-3a1%201%200%201%200%202%200%201%201%200%201%200-2%200m0%203a1%201%200%201%201%202%200v3a1%201%200%201%201-2%200%22%2F%3E%3C%2Fsvg%3E") !important;
+  }
+
+  @media (max-width: 560px) {
+    :root {
+      --transport-h: 48px; --views-h: 50px;
+      /* A phone's top row cannot hold the card, the road switch and the title
+         side by side - a readable card is already well past half the width.
+         The switch keeps the top, because it says which map you are looking
+         at, and the card drops below it. */
+      --card-top: calc(var(--safe-t) + 42px);
+      --card-h: 96px;
+    }
+    #next-exit { max-width: 64vw; }
+    /* The title gives way to the switch beside it, and says the same thing in
+       a quarter of the width. */
+    #title-card { padding: 6px 8px 7px; }
+    #title-card h1 { font-size: 11.5px; }
+    #title-card p, #title-card .full { display: none; }
+    #title-card .short { display: inline; }
+    /* The bottom row is three columns on a phone: the map's own controls on the
+       left, the view and transport pills on the right, and whatever is left in
+       the middle. Centring the dial on the viewport puts it half under the
+       pills, so it is offset past the control column instead. */
+    #speedo {
+      width: 124px; height: 82px; padding: 5px 6px 6px;
+      left: calc(var(--safe-l) + 80px); transform: none;
+    }
+    #note { left: calc(var(--safe-l) + 80px); transform: none; text-align: left; }
+    #speedo svg { width: 112px; height: 64px; }
+    #speedo-cap { top: 4px; left: 8px; }
+    #speedo-label { bottom: 5px; }
+    #transport button { width: 38px; height: 38px; }
+    #views button { min-width: 46px; height: 40px; padding: 0 4px; }
+    #views svg { width: 16px; height: 16px; }
+    #views .lbl { font-size: 8px; letter-spacing: .04em; }
+    .sign-badge { font-size: 15px; padding: 2px 8px 3px; }
+    #road-switch button { padding: 6px 14px; font-size: 11px; }
+  }
+
+  /* Below about 370 px the middle column of that bottom row is 60 px wide and
+     the dial is 112, so there is no middle any more. The dial joins the
+     right-hand stack instead - scrubber, dial, views, transport, one column -
+     and the scrubber's floor rises to make room. The note drops to the floor,
+     which is the only strip of the bottom row still empty. */
+  @media (max-width: 370px) {
+    :root { --speedo-h: 82px; }
+    #speedo {
+      left: auto; right: var(--safe-r); transform: none;
+      bottom: calc(var(--safe-b) + var(--transport-h) + var(--views-h) + 14px);
+    }
+    #scrubber {
+      bottom: calc(var(--safe-b) + var(--transport-h) + var(--views-h) + var(--speedo-h) + 22px);
+    }
+    #note { bottom: var(--safe-b); }
+    #title-card h1 { font-size: 10.5px; }
+  }
+</style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="signs"></div>
+  <div id="edge"></div>
+  <div id="warn"></div>
+
+  <div id="road-switch" role="tablist" aria-label="Road">
+    <div id="road-slider"></div>
+  </div>
+
+  <div id="topleft">
+    <div id="title-card" role="button" tabindex="0" aria-haspopup="dialog"
+         title="What is this map?">
+      <h1><span class="full">Toll roads over 1930s New&nbsp;Jersey</span><span
+          class="short">Toll roads over 1930s NJ</span><span id="title-more" aria-hidden="true">i</span></h1>
+      <p>The Turnpike and the Parkway, drawn on aerial photography taken before
+         either of them was built.</p>
+    </div>
+    <div id="minimap" aria-hidden="true"><canvas id="mini-canvas"></canvas></div>
+  </div>
+
+  <div id="next-exit" aria-live="polite" aria-label="Next interchange">
+    <div id="ne-head"><span id="ne-dist"></span><span id="ne-badge"></span></div>
+    <div id="ne-dest"></div>
+    <div id="ne-tag"></div>
+  </div>
+
+  <div id="note"></div>
+
+  <div id="scrubber" tabindex="0" role="slider"
+       aria-label="Position along the route" aria-valuemin="0" aria-valuemax="1000" aria-valuenow="0">
+    <div id="scrub-track">
+      <div id="scrub-fill"></div>
+      <div id="scrub-thumb">
+        <div id="scrub-readout">
+          <div id="scrub-exits"><u></u><i>&#9656;</i><b></b></div>
+          <div id="scrub-mi">0.0 mi</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="speedo" tabindex="0" role="slider"
+       aria-label="Speed" aria-valuemin="1" aria-valuemax="5" aria-valuenow="5">
+    <div id="speedo-cap">Speed</div>
+    <svg viewBox="0 0 132 74" aria-hidden="true">
+      <path class="dial" d="M 14 64 A 52 52 0 0 1 118 64"></path>
+      <path class="lit" id="speedo-lit" d="M 14 64 A 52 52 0 0 1 118 64"></path>
+      <g id="speedo-ticks"></g>
+      <path class="hit" d="M 14 64 A 52 52 0 0 1 118 64"></path>
+      <circle class="knob" id="speedo-knob" cx="118" cy="64" r="6"></circle>
+    </svg>
+    <div id="speedo-label">
+      <div><span id="speed-notch">5</span></div>
+      <span id="speed-mode" role="button" tabindex="0" title="Speed follows the zoom">AUTO</span>
+    </div>
+  </div>
+
+  <div id="views" role="group" aria-label="View"></div>
+
+  <div id="transport">
+    <button id="play" type="button" aria-label="Play"></button>
+    <button id="reset" type="button" aria-label="Back to the start"></button>
+    <button id="direction" type="button" aria-label="Direction of travel"></button>
+  </div>
+
+  <!-- The long explanation. Written in Simplified Technical English: short
+       active sentences, one idea each, so it reads the same way to everyone. -->
+  <div id="about" role="dialog" aria-modal="true" aria-labelledby="about-title">
+    <div id="about-panel">
+      <div id="about-head">
+        <h2 id="about-title">Toll roads over 1930s New Jersey</h2>
+        <button id="about-close" type="button" aria-label="Close">&#10005;</button>
+      </div>
+      <div id="about-body">
+        <h3>What this map shows</h3>
+        <p>This map draws two New Jersey toll roads on aerial photographs from the
+           1930s. The photographs show the ground before the roads existed. Press
+           play, and a road unrolls across the state from one end to the other.</p>
+
+        <h3>The photographs</h3>
+        <p>New Jersey photographed the whole state from the air in the 1930s. The
+           photographs are black and white. They show farms, marsh, rail lines and
+           small towns. The New Jersey Department of Environmental Protection keeps
+           this photography today.</p>
+
+        <h3>The roads</h3>
+        <p>The New Jersey Turnpike opened in 1951. It runs 122 miles, from Pennsville
+           to Fort Lee. North of Newark it splits into two roads. This map draws
+           both of them.</p>
+        <p>The Garden State Parkway opened in stages. The last stage opened in 1957.
+           It runs 172 miles, from Cape May to the New York state line.</p>
+
+        <h3>How to use the map</h3>
+        <ol>
+          <li>Select a road with the switch at the top.</li>
+          <li>Select a view: <b>State</b> shows all of the road. <b>Follow</b> looks
+              straight down at it. <b>Drive</b> looks along it in 3D.</li>
+          <li>Press play at the bottom right.</li>
+          <li>Turn the dial to set the speed. The dial has five steps. It follows the
+              zoom until you move it. Press AUTO to make it follow the zoom again.</li>
+          <li>Drag the bar on the right to go to a different place on the road. North
+              is at the top.</li>
+          <li>Press the direction button to drive the other way.</li>
+        </ol>
+        <p class="dim">You can also zoom, turn and tilt the map at any time. Press a
+           view button again to go back to that view.</p>
+
+        <h3>What you see on the road</h3>
+        <p>The green band is the whole road. The gold line inside it is the part you
+           have driven. The green sign at the top right names the next interchange.
+           It gives the distance to it. Small green tabs mark each interchange on
+           the ground.</p>
+
+        <h3>Where the data comes from</h3>
+        <ul>
+          <li>Photography: New Jersey DEP and NJGIS.</li>
+          <li>Road lines, interchanges and toll barriers: OpenStreetMap.</li>
+          <li>Town boundaries: NJGIS.</li>
+          <li>Ground heights for the Drive view: Mapterhorn.</li>
+        </ul>
+
+        <h3>How it works</h3>
+        <p class="dim">The photography is one large file. Your browser asks the
+           server for small parts of that file, and only for the parts on screen.
+           MapLibre GL draws the map. Everything runs on your own machine.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- pmtiles' ESM build leaves its one dependency as a bare import, so point
+       it at the vendored copy. Must come before any module script. -->
+  <script src="config.js"></script>
+  <script type="importmap">
+    { "imports": { "fflate": "./vendor/fflate.mjs" } }
+  </script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
