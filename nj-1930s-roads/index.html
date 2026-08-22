@@ -388,7 +388,10 @@
     stroke-linecap: round; stroke-linejoin: round;
   }
   .pb-btn svg { width: 16px; height: 16px; }
-  .pb-btn .ico-arrow { width: 12px; height: 16px; }
+  .pb-btn .ico-arrow { width: 12px; height: 16px; transition: transform 200ms ease; }
+  /* The arrow points the way the run goes. Its box is 12x24 and the shape is
+     symmetric about the centre, so a half turn lands a true down arrow. */
+  .pb-heading.is-south .ico-arrow { transform: rotate(180deg); }
   /* Half these icons are stroked outlines and half are solid. Each shape says
      which it is; a blanket fill on the <svg> would turn the outlines into
      blobs, which is exactly what it used to do to the restart arrow. */
@@ -681,7 +684,7 @@
 
     <button class="pb-btn" type="button" id="btnFlip">
       <span class="pb-icon pb-heading">
-        <svg viewBox="0 0 12 24" class="ico-arrow" aria-hidden="true"><path d="M6 4v15"/><path d="M2.5 15.5 6 19.5l3.5-4"/></svg>
+        <svg viewBox="0 0 12 24" class="ico-arrow" aria-hidden="true"><path d="M6 20V5"/><path d="M2.5 8.5 6 4.5l3.5 4"/></svg>
         <span id="headingLetter">N</span>
       </span>
       <span id="headingLabel">NORTH</span>

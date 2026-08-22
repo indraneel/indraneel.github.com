@@ -2735,6 +2735,9 @@ function syncDirection() {
   if (!b) return;
   $('headingLetter').textContent = northbound ? 'N' : 'S';
   $('headingLabel').textContent = northbound ? 'NORTH' : 'SOUTH';
+  // The arrow turns with the run rather than pointing down in both states,
+  // where it said "south" next to an N half the time.
+  b.querySelector('.pb-heading').classList.toggle('is-south', !northbound);
   b.title = northbound
     ? 'Running northbound — tap to run southbound'
     : 'Running southbound — tap to run northbound';
