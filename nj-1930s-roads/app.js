@@ -30,6 +30,10 @@ const NETWORKS = {
     label: 'New Jersey Turnpike',
     short: 'NJTP',
     file: 'route.geojson',
+    /* Where the whole-state view sits for this road. See showOverview: the
+     * tilt is what makes a 184 km diagonal fit a portrait screen at all, and
+     * the small turn squares the corridor up without giving up north-up. */
+    overview: { bearing: -8, pitch: 46 },
     color: '#007a33', // Turnpike green
     gold: '#ffd100', // shield gold
     // The same green either side of it: the road as it is going to be, and the
@@ -43,6 +47,9 @@ const NETWORKS = {
     label: 'Garden State Parkway',
     short: 'GSP',
     file: 'route-gsp.geojson',
+    // Longer than the Turnpike and almost straight down the coast, so it wants
+    // more tilt and a turn the other way to sit square on the screen.
+    overview: { bearing: 6, pitch: 52 },
     // The Parkway's true brand green is far darker; it vanishes over the Pine
     // Barrens on a monochrome basemap. DESIGN.md section 1 has the reasoning.
     color: '#2e7d32',
@@ -97,7 +104,8 @@ const INTRO_MS = 2600;
  * how deep, and how hard the relief is pushed. Picking a view is the whole
  * interaction - there is no combination of switches to get wrong.
  *
- *   state - the whole thing, north up, flat. Where the map opens.
+ *   state - the whole thing, north up and tipped off nadir. Where the map
+ *           opens. The tilt is per road; see NETWORKS[].overview.
  *   top   - straight down and close, following: what a town looks like as the
  *           road goes through it.
  *   drive - the car-navigation view. Tilted right over, turned to face the way
@@ -115,11 +123,10 @@ const INTRO_MS = 2600;
  * watching it unroll away behind is most of the point.
  */
 const VIEWS = {
-  state: { pitch: 0, headingUp: false, follow: false, zoom: null, low: null },
+  state: { pitch: 46, headingUp: false, follow: false, zoom: null, low: null },
   top: { pitch: 0, headingUp: false, follow: true, zoom: 13.4, low: null },
   drive: { pitch: 74, headingUp: true, follow: true, zoom: 13.5, low: 0.5 },
 };
-const VIEW_ORDER = ['state', 'top', 'drive'];
 
 /* Sky and horizon haze. With the camera tipped to 74 degrees the top of the
  * screen is the edge of the loaded terrain against nothing, which reads as a
@@ -176,9 +183,9 @@ const ZOOM_TAU = 0.5; // seconds; camera zoom smoothing
 
 // Room left around the pair of heads when both alignments are running.
 const SPLIT_PADDING = { top: 90, right: 96, bottom: 150, left: 40 };
-// The overview has to clear the road switch above, the speedometer and the
-// bottom-right stack below, the scrubber down the whole right-hand edge, and
-// the map controls down the left.
+// The overview has to clear the road switch above, the bottom-right stack
+// below, the scrubber down the whole right-hand edge, and the map controls
+// down the left.
 const OVERVIEW_PADDING = { top: 62, right: 66, bottom: 130, left: 58 };
 
 // Sign lifecycle, in metres of route either side of the head. Ahead gets more
@@ -284,32 +291,6 @@ const ICON = {
   // Filled navigation arrow - "which way am I pointed".
   heading:
     '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.6 19.4 21a.6.6 0 0 1-.85.72L12 18.3l-6.55 3.42A.6.6 0 0 1 4.6 21z"/></svg>',
-  // Recentre reticle - "keep me in the middle", looking straight down.
-  follow:
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="5.2"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><path d="M12 1.8v3.4M12 18.8v3.4M1.8 12h3.4M18.8 12h3.4"/></svg>',
-  // Fit-to-extent brackets.
-  whole:
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
-  // A road running away to a horizon: the windscreen view, which is what every
-  // navigation app puts behind its 3D button. The horizon line is not
-  // decoration - without it the trapezoid alone reads as a warning triangle.
-  drive:
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2.8 7.6h18.4"/><path d="M9.9 7.6 3.6 20.4M14.1 7.6l6.3 12.8"/><path d="M12 10.4v1.7M12 14.3v1.9M12 18.4v1.8"/></svg>',
-  north:
-    '<svg viewBox="0 0 24 24"><path d="M6.4 3.2l3.6 5H7.7v12.6h-2.6V8.2H2.8z" fill="currentColor"/><text x="12.6" y="17.4" font-family="ui-sans-serif,sans-serif" font-size="13" font-weight="700" fill="currentColor">N</text></svg>',
-  south:
-    '<svg viewBox="0 0 24 24"><path d="M6.4 20.8l3.6-5H7.7V3.2h-2.6v12.6H2.8z" fill="currentColor"/><text x="12.6" y="17.4" font-family="ui-sans-serif,sans-serif" font-size="13" font-weight="700" fill="currentColor">S</text></svg>',
-  // Every icon states its own paint. A stylesheet fill on the <svg> overrides a
-  // fill="none" presentation attribute, which is what filled the old reset
-  // arc in and left a blob in the corner of the screen.
-  play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.6 19.5 12 7 19.4z"/></svg>',
-  pause:
-    '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.5 4.5h4v15h-4zM13.5 4.5h4v15h-4z"/></svg>',
-  // Skip-to-start rather than a circular arrow: this button goes back to the
-  // beginning of the run, and the bar-and-triangle says that in one glance
-  // where a rotating arrow says "reload" to half the people who see it.
-  reset:
-    '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5.6 5h2.7v14H5.6z"/><path d="M19.8 5.3v13.4L9.6 12z"/></svg>',
   // The head of the reveal. Same arrow every navigation app draws itself with -
   // a swept chevron rather than an isoceles triangle, because the notch in the
   // tail is what makes the point read as the front at 26 px. Painted from CSS
@@ -877,7 +858,6 @@ function chrome() {
   // set of hand-tuned margins in step with the CSS.
   add($('views'), 6);
   add($('transport'), 6);
-  add($('speedo'), 4);
   add($('road-switch'), 6);
   chromeBoxes = out;
   return out;
@@ -1231,7 +1211,70 @@ function tick(ts) {
   requestAnimationFrame(tick);
 }
 
-/* The camera that frames every vertex of the route at a given bearing.
+/* The outline of the whole road in Mercator, as a convex hull.
+ *
+ * Fitting is a search - candidate scales, and candidate bearings when the first
+ * one does not fit - and every candidate has to ask where the extreme points
+ * land. Under a tilted camera the answer is a projective map, and a projective
+ * map takes the hull of a set of points to the hull of their images, so a few
+ * dozen points answer for all 5,000 of the Parkway's. Rebuilt when the road
+ * changes; see teardownRoutes. */
+let routeHull = null;
+
+function buildHull() {
+  const pts = [];
+  for (const r of routes) for (const m of r.merc) pts.push(m);
+  if (pts.length < 3) return pts.slice();
+  pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  // Monotone chain. cross > 0 keeps the turn, so each half is built as a
+  // sequence of right turns and the two halves close into one ring.
+  const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const half = (src) => {
+    const out = [];
+    for (const p of src) {
+      while (out.length >= 2 && cross(out[out.length - 2], out[out.length - 1], p) <= 0) out.pop();
+      out.push(p);
+    }
+    out.pop();
+    return out;
+  };
+  return half(pts).concat(half(pts.slice().reverse()));
+}
+
+const hull = () => (routeHull ||= buildHull());
+
+/* MapLibre's default vertical field of view, and the camera distance it puts
+ * behind the centre of the screen: 0.5 / tan(fov/2) viewport heights, which is
+ * 1.5 of them. Everything about a tilted frame follows from that one number. */
+const FOV = 0.6435011087932844;
+const cameraDist = (h) => (0.5 / Math.tan(FOV / 2)) * h;
+
+/* A tilted camera, in the flat map plane it is looking at.
+ *
+ * Take the centre of the screen as the origin and measure the ground in the
+ * pixels it would occupy if the camera were straight down - call that (U, V),
+ * U across the screen and V down it. Tipping the camera by p about the screen's
+ * horizontal axis leaves the centre where it is and puts a ground point at
+ *
+ *   camera space (U, V cos p, d - V sin p)      d = distance to the centre
+ *
+ * so, dividing through by the depth and scaling by d (which is the focal length
+ * that makes the centre come out 1:1):
+ *
+ *   x = U d / (d - V sin p)        y = V cos p d / (d - V sin p)
+ *
+ * Ground below the centre (V > 0) is nearer the camera and blows up; ground
+ * above it recedes and packs down, which is exactly why a tilt fits more road
+ * on the screen than nadir does and why the fit below is worth the trouble.
+ *
+ * `flatV` is the inverse of y: the flat-map V that lands on a given screen row.
+ * Its denominator vanishes at the horizon, y = d / tan p, which for any pitch
+ * this map uses is well off the top of the screen. */
+const screenScale = (V, d, sinP) => d / (d - V * sinP);
+const flatV = (y, d, sinP, cosP) => (y * d) / (d * cosP + y * sinP);
+
+/* The camera that frames every vertex of the route at a given bearing and
+ * pitch, or null if nothing fits or there is no geometry yet.
  *
  * fitBounds cannot do this job. It fits the bounding *box*, and rotating a box
  * only ever makes its axis-aligned extent larger - fit a 130 x 130 km box at 45
@@ -1239,9 +1282,16 @@ function tick(ts) {
  * bearing makes the frame worse, never better. What fits a long diagonal road
  * into a portrait screen is fitting the road rather than its box: the Turnpike
  * is 184 km corner to corner but only about 25 km wide across its own axis.
+ * fitBounds is flat, too, and half the reason the whole state fits at all here
+ * is that the camera is tipped over.
  *
- * Returns null if the route has no geometry yet. */
-function frameRoute(bearingDeg, pad) {
+ * The search: the vertical constraint alone gives the largest scale that could
+ * possibly work in closed form, because the top and bottom of the padded box
+ * pull back to a fixed span of flat map through flatV. Across the screen there
+ * is no such formula - how much room a point needs depends on how much its own
+ * depth magnifies it - so the scale comes down by bisection, and at each step
+ * the centre is solved rather than guessed. */
+function frameRoute(bearingDeg, pad, pitchDeg = 0, maxZoom = MAX_ZOOM) {
   if (!routes.length) return null;
   /* Screen axes against world (Mercator) axes at bearing b. Mercator x runs
    * east and y runs SOUTH, which is the same way screen y runs, so at bearing 0
@@ -1258,69 +1308,206 @@ function frameRoute(bearingDeg, pad) {
   const b = bearingDeg * RAD;
   const cos = Math.cos(b);
   const sin = Math.sin(b);
+  const pts = hull();
+  if (!pts.length) return null;
+  const us = new Float64Array(pts.length);
+  const vs = new Float64Array(pts.length);
   let minU = Infinity;
   let maxU = -Infinity;
   let minV = Infinity;
   let maxV = -Infinity;
-  for (const r of routes) {
-    for (const m of r.merc) {
-      const u = m[0] * cos + m[1] * sin;
-      const v = -m[0] * sin + m[1] * cos;
-      if (u < minU) minU = u;
-      if (u > maxU) maxU = u;
-      if (v < minV) minV = v;
-      if (v > maxV) maxV = v;
-    }
+  for (let i = 0; i < pts.length; i++) {
+    const u = pts[i][0] * cos + pts[i][1] * sin;
+    const v = -pts[i][0] * sin + pts[i][1] * cos;
+    us[i] = u;
+    vs[i] = v;
+    if (u < minU) minU = u;
+    if (u > maxU) maxU = u;
+    if (v < minV) minV = v;
+    if (v > maxV) maxV = v;
   }
+  const spanV = Math.max(maxV - minV, 1e-12);
+
+  // The padded box, in screen pixels either side of the centre of the canvas.
+  // Asymmetric padding is why these are kept as four edges rather than a width
+  // and a height: the camera has to sit off the middle of what it frames.
   const canvas = map.getCanvas();
-  const w = Math.max(32, canvas.clientWidth - pad.left - pad.right);
-  const h = Math.max(32, canvas.clientHeight - pad.top - pad.bottom);
-  // Mercator units run 0..1 across the world, and the world is 512 * 2^zoom px.
-  const worldPx = Math.min(w / Math.max(maxU - minU, 1e-12), h / Math.max(maxV - minV, 1e-12));
-  // Asymmetric padding means the framed box is not centred in the viewport: the
-  // camera sits off it by half the difference between each pair of pads.
-  const cu = (minU + maxU) / 2 - (pad.left - pad.right) / 2 / worldPx;
-  const cv = (minV + maxV) / 2 - (pad.top - pad.bottom) / 2 / worldPx;
+  const W = canvas.clientWidth;
+  const H = canvas.clientHeight;
+  const left = -W / 2 + pad.left;
+  const right = Math.max(left + 32, W / 2 - pad.right);
+  const top = -H / 2 + pad.top;
+  const bottom = Math.max(top + 32, H / 2 - pad.bottom);
+
+  const p = pitchDeg * RAD;
+  const sinP = Math.sin(p);
+  const cosP = Math.cos(p);
+  const d = cameraDist(H);
+  // Flat-map pixels the box can hold up and down the screen. At nadir this is
+  // just its height; tipped over it is far more, all of it gained at the top.
+  const vTop = flatV(top, d, sinP, cosP);
+  const vBottom = flatV(bottom, d, sinP, cosP);
+
+  /* Where a free centre sits when the fit leaves room to spare: the value in
+   * [lo, hi] that splits the spare evenly, measured on the screen rather than
+   * on the map. Those are not the same thing under a tilt - half the flat map
+   * is nowhere near half the screen - and taking the middle of the interval
+   * instead lands the road high with a band of nothing under it. `gap` is the
+   * near margin less the far one and falls as the centre moves, so twenty
+   * halvings put it inside a pixel. */
+  const balance = (lo, hi, gap) => {
+    if (!(hi > lo)) return (lo + hi) / 2;
+    if (gap(lo) <= 0) return lo;
+    if (gap(hi) >= 0) return hi;
+    let a = lo;
+    let z = hi;
+    for (let i = 0; i < 20; i++) {
+      const mid = (a + z) / 2;
+      if (gap(mid) > 0) a = mid;
+      else z = mid;
+    }
+    return (a + z) / 2;
+  };
+
+  /* Everything that fits at scale s, in Mercator units to the pixel, or null.
+   *
+   * Vertically the centre is free within an interval, since the route only has
+   * to sit between the two rows: the top of the box pulls the centre down, the
+   * bottom pulls it up, and if they cross, the scale is too big. Across, with
+   * the depths now settled by that choice, every point turns the two side
+   * edges into its own pair of bounds, and the route fits exactly when no
+   * point's lower bound passes another's upper one. Both intervals are then
+   * spent on centring what is inside them. */
+  const ms = new Float64Array(us.length);
+  const screenY = (V) => V * cosP * screenScale(V, d, sinP);
+  const solve = (s) => {
+    const cvLo = maxV - vBottom / s;
+    const cvHi = minV - vTop / s;
+    if (cvLo > cvHi) return null;
+    const cv = balance(
+      cvLo,
+      cvHi,
+      (c) => screenY((minV - c) * s) - top - (bottom - screenY((maxV - c) * s)),
+    );
+    let cuLo = -Infinity;
+    let cuHi = Infinity;
+    for (let i = 0; i < us.length; i++) {
+      ms[i] = screenScale((vs[i] - cv) * s, d, sinP) * s;
+      const lo = us[i] - right / ms[i];
+      const hi = us[i] - left / ms[i];
+      if (lo > cuLo) cuLo = lo;
+      if (hi < cuHi) cuHi = hi;
+    }
+    if (cuLo > cuHi) return null;
+    const cu = balance(cuLo, cuHi, (c) => {
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (let i = 0; i < us.length; i++) {
+        const x = (us[i] - c) * ms[i];
+        if (x < lo) lo = x;
+        if (x > hi) hi = x;
+      }
+      return lo - left - (right - hi);
+    });
+    return { cu, cv };
+  };
+
+  /* Neither constraint alone can be beaten, so the vertical one is the ceiling
+   * the search starts from - and at nadir, or on a wide screen, it is often the
+   * answer outright. Otherwise bisect down to the largest scale that solves.
+   * The caller's own ceiling comes in on top of that: see showOverview, where
+   * what the tilt gains is deliberately not spent on zoom. */
+  let hi = Math.min((vBottom - vTop) / spanV, 512 * 2 ** maxZoom);
+  let worldPx = hi;
+  let best = solve(hi);
+  if (!best) {
+    let lo = 0;
+    for (let i = 0; i < 24; i++) {
+      const s = (lo + hi) / 2;
+      const c = solve(s);
+      if (c) {
+        best = c;
+        worldPx = s;
+        lo = s;
+      } else {
+        hi = s;
+      }
+    }
+    if (!best) return null;
+  }
+
+  const { cu, cv } = best;
   const centre = new maplibregl.MercatorCoordinate(cu * cos - cv * sin, cu * sin + cv * cos, 0);
-  return { center: centre.toLngLat(), zoom: Math.log2(worldPx / 512), bearing: bearingDeg };
+  // Mercator units run 0..1 across the world, and the world is 512 * 2^zoom px.
+  return {
+    center: centre.toLngLat(),
+    zoom: Math.log2(worldPx / 512),
+    bearing: bearingDeg,
+    pitch: pitchDeg,
+  };
 }
 
-/* The whole state, north up and flat - what the map opens on, and what the
- * first of the three view buttons goes back to. It used to be tilted and turned
- * to look up the corridor, which is a handsome frame and a poor map: with two
- * roads running the length of the state, an oblique makes the far half
- * unreadable and hides which end you are at.
+/* The whole state, north up and tipped off nadir - what the map opens on, and
+ * what the first of the three view buttons goes back to. It used to look up the
+ * corridor from one end, which is a handsome frame and a poor map: with two
+ * roads running the length of the state, an oblique along the road makes the
+ * far half unreadable and hides which end you are at.
  *
- * North up is what this view is for, and it is what it uses whenever it can.
- * But the imagery archive bottoms out at z8, and there is no camera that both
- * faces north and holds the whole road at that zoom in every case: the Parkway
- * is 245 km tall and a desktop screen has room for about 135 km of northing,
- * while a portrait phone cannot hold the Turnpike's diagonal at all.
+ * So the tilt here is a small one and the map stays north up under it. A road
+ * seen dead flat at z8 is a green thread on a grey field; off nadir the state
+ * reads as a thing lying on the ground with the road drawn across it, the near
+ * end comes forward, and - the part that is not decoration - the far half packs
+ * down, which is what lets a 245 km road fit a screen with 135 km of northing
+ * on it at all. Each road picks its own tilt and its own few degrees of turn
+ * (NETWORKS[].overview) because their shapes want different framing: the
+ * Turnpike is a diagonal, the Parkway a long shallow S down the coast.
  *
- * So: north up if it fits. If it does not, turn by the smallest angle that
- * does - which for the Parkway on a wide screen means laying it across the
- * screen rather than up it. If nothing fits, stay north up and let it clip,
+ * North up is still what this view is for, and it is what it uses whenever it
+ * can. But the imagery archive bottoms out at z8, and on a small enough screen
+ * there is no camera that both faces north and holds the whole road at that
+ * zoom. So: the road's own bearing if it fits. If it does not, turn off it by
+ * the smallest angle that does. If nothing fits, stay put and let it clip,
  * because rotating to an odd angle for a few per cent more road is a worse
  * trade than an honest crop. */
+const overviewCamera = () => net.overview || { bearing: 0, pitch: VIEWS.state.pitch };
+
 function showOverview(duration = 0) {
   const pad = OVERVIEW_PADDING;
-  const north = frameRoute(0, pad);
-  if (!north) {
-    if (bounds) map.fitBounds(bounds, { padding: pad, bearing: 0, pitch: 0, duration });
+  const { bearing: b0, pitch } = overviewCamera();
+  /* What the tilt gains, it spends on air rather than on detail.
+   *
+   * Tipping the camera packs the far half of the road down and frees a lot of
+   * screen, and letting the fit take all of that back as zoom produces a frame
+   * holding the road and nothing around it: the state off all four edges and
+   * the near end enormous. This view's job is orientation, so where the map
+   * would have framed the road flat, that is the scale the tilt keeps, and what
+   * it gains goes into margins - the whole state on screen, lying on the
+   * ground.
+   *
+   * Where the flat frame is below the bottom of the archive, though, there is
+   * no such scale to hold: the road did not fit north up at z8 at all, which is
+   * the case the tilt is genuinely for, and it gets to use everything it gains
+   * on the fit. */
+  const flat = frameRoute(b0, pad, 0);
+  const home = frameRoute(b0, pad, pitch, flat && flat.zoom >= MIN_ZOOM ? flat.zoom : MAX_ZOOM);
+  if (!home) {
+    if (bounds) map.fitBounds(bounds, { padding: pad, bearing: b0, pitch, duration });
     return;
   }
 
-  let best = north;
-  if (north.zoom < MIN_ZOOM) {
-    // Ordered by how far from north it is, so the first fit found is the least
-    // disorienting one rather than merely the widest.
-    for (let d = 5; d <= 180 && best === north; d += 5) {
-      for (const cand of [frameRoute(d, pad), frameRoute(360 - d, pad)]) {
-        if (cand.zoom >= MIN_ZOOM && (best === north || cand.zoom > best.zoom)) best = cand;
+  let best = home;
+  if (home.zoom < MIN_ZOOM) {
+    /* Ordered by how far from the road's own bearing it is, so the first fit
+     * found is the least disorienting one rather than merely the widest. No
+     * ceiling on these: the frame the road did not fit in is not a scale worth
+     * keeping, and the widest of the ones that do fit is the answer. */
+    for (let d = 5; d <= 180 && best === home; d += 5) {
+      for (const cand of [frameRoute(b0 + d, pad, pitch), frameRoute(b0 - d, pad, pitch)]) {
+        if (cand && cand.zoom >= MIN_ZOOM && (best === home || cand.zoom > best.zoom)) best = cand;
       }
     }
   }
-  map.easeTo({ ...best, zoom: Math.max(best.zoom, MIN_ZOOM), pitch: 0, duration, essential: true });
+  map.easeTo({ ...best, zoom: Math.max(best.zoom, MIN_ZOOM), duration, essential: true });
 }
 
 /* Move to one of the three views.
@@ -1343,9 +1530,11 @@ function setView(mode, duration = 1100) {
    * is a wobble in the imagery and a stream of elevation tiles. */
   terrainOn = !!TERRAIN && mode === 'drive';
   applyTerrain();
-  // The haze is only ever visible when there is a horizon on screen, and it
-  // costs a draw call when there is not.
-  map.setSky(v.pitch > 25 ? SKY : undefined);
+  /* The haze is only ever visible when there is a horizon on screen, and it
+   * costs a draw call when there is not. With MapLibre's field of view the
+   * horizon only climbs into the top of the frame past about 70 degrees: the
+   * driving view has one, the tilted overview does not. */
+  map.setSky(v.pitch > 65 ? SKY : undefined);
   syncViews();
   syncMinimap();
   syncControls();
@@ -1414,8 +1603,7 @@ function setView(mode, duration = 1100) {
 
 function setPlaying(on) {
   playing = on;
-  $('play').innerHTML = on ? ICON.pause : ICON.play;
-  $('play').setAttribute('aria-label', on ? 'Pause' : 'Play');
+  paintPlay();
   document.body.classList.toggle('driving', on);
   lastFrame = null;
   if (!on) {
@@ -1513,7 +1701,7 @@ map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-lef
 // maxWidth rather than a CSS clamp: the control picks a round distance that
 // fits the width it is given, so capping it here keeps the bar honest. Left at
 // its default of 100 px the scale bar is the widest thing in this column, and
-// the column's width is what the speedometer is offset past on a phone.
+// on a phone that column is all the room the run controls leave it.
 map.addControl(new maplibregl.ScaleControl({ unit: 'imperial', maxWidth: 76 }), 'bottom-left');
 map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-left');
 map.addControl(ctlGroup, 'bottom-left');
@@ -1522,37 +1710,57 @@ map.addControl(ctlGroup, 'bottom-left');
 // The three-way view switch, and the road switch
 // --------------------------------------------------------------------------
 
-/* `label` goes under the icon and `long` into the tooltip. They differ because
- * the button is 54 px wide and "Whole state" is not - and because "State" under
- * a fit-to-extent icon is unambiguous in a way it would not be on its own. */
+/* The three camera modes. The markup is in the document rather than built here
+ * - it is three fixed buttons, and a loop that emits three fixed things is a
+ * loop you have to read to find out what is on screen.
+ *
+ * `long` and `hint` are still built here because they are the tooltip, and the
+ * tooltip is the only place with room to say what a mode actually does. */
 const VIEW_BUTTONS = {
-  state: { icon: ICON.whole, label: 'State', long: 'Whole state', hint: 'the whole road, north up' },
-  top: { icon: ICON.follow, label: 'Follow', long: 'Follow', hint: 'straight down, close, keeping up with the head' },
-  drive: { icon: ICON.drive, label: 'Drive', long: 'Drive', hint: 'the windscreen view, tilted and in 3D' },
+  state: { long: 'Whole state', hint: 'the whole road, north up' },
+  top: { long: 'Follow', hint: 'straight down, close, keeping up with the head' },
+  drive: { long: 'Drive', hint: 'the windscreen view, tilted and in 3D' },
 };
 
+const modeBtns = () => [...$('views').querySelectorAll('.mode-btn')];
+
 function buildViewSwitch() {
-  const host = $('views');
-  for (const mode of VIEW_ORDER) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.dataset.view = mode;
-    b.innerHTML = `${VIEW_BUTTONS[mode].icon}<span class="lbl">${VIEW_BUTTONS[mode].label}</span>`;
-    b.title = `${VIEW_BUTTONS[mode].long} — ${VIEW_BUTTONS[mode].hint}`;
-    b.setAttribute('aria-label', b.title);
+  for (const b of modeBtns()) {
+    const v = VIEW_BUTTONS[b.dataset.mode];
+    if (!v) continue;
+    b.title = `${v.long} — ${v.hint}`;
     // Tapping the view you are already in re-centres it, which is the way back
-    // after you have dragged the map somewhere and stopped following.
-    b.addEventListener('click', () => setView(mode));
-    host.appendChild(b);
+    // after you have dragged the map somewhere and stopped following. So this
+    // does not test whether the mode changed.
+    b.addEventListener('click', () => setView(b.dataset.mode));
   }
 }
 
+/* The pill is positioned from the selected button's own box rather than from a
+ * hard-coded step, for the same reason the road switch's is: the buttons narrow
+ * at two breakpoints, and an indicator that does not fit what it is under reads
+ * as broken. Measured off bounding rects because offsetLeft is quoted against
+ * the padding edge in some engines and the border edge in others.
+ *
+ * Offset from the first button rather than from the pane: the pill starts life
+ * on top of that button, so the distance between the two is the whole answer
+ * and neither the padding nor the border width comes into it. */
 function syncViews() {
-  for (const b of $('views').children) {
-    const on = b.dataset.view === viewMode;
-    b.classList.toggle('on', on);
-    b.setAttribute('aria-pressed', String(on));
+  const pill = $('modePill');
+  const btns = modeBtns();
+  for (const b of btns) {
+    const on = b.dataset.mode === viewMode;
+    b.classList.toggle('is-active', on);
+    b.setAttribute('aria-checked', String(on));
   }
+  const active = btns.find((b) => b.dataset.mode === viewMode);
+  if (!pill || !active || !btns.length) return;
+  const first = btns[0].getBoundingClientRect();
+  const br = active.getBoundingClientRect();
+  // Zero before first layout, and translating by a garbage offset would park
+  // the pill somewhere it then has to animate back from.
+  if (!first.width || !br.width) return;
+  pill.style.transform = `translateX(${(br.left - first.left).toFixed(2)}px)`;
 }
 
 function buildRoadSwitch() {
@@ -1593,9 +1801,9 @@ function syncRoadSwitch() {
 }
 
 /* MapLibre opens a compact attribution expanded, which on a phone is two lines
- * of text straight across the speedometer. Collapse it to its (i) and let it be
- * opened deliberately - the credit is still one tap away, which is what compact
- * is for. */
+ * of text straight across the bottom of the map. Collapse it to its (i) and
+ * let it be opened deliberately - the credit is still one tap away, which is
+ * what compact is for. */
 map.on('load', () => {
   for (const el of document.querySelectorAll('.maplibregl-ctrl-attrib')) {
     el.classList.remove('maplibregl-compact-show');
@@ -1877,9 +2085,10 @@ function addRoute(feature, id, isMain) {
     throw new Error(`${p.name || id}: bad attach_start_m/attach_end_m (run build_route.py?)`);
   }
 
-  // Every vertex in Mercator, kept because showOverview rotates the whole route
-  // through dozens of candidate bearings and re-projecting 8,000 points per
-  // bearing is the difference between instant and a visible stall.
+  // Every vertex in Mercator, kept because the overview's framing works in that
+  // space: it takes the convex hull of these (buildHull) and rotates it through
+  // however many candidate cameras the fit needs. Projecting from lng/lat every
+  // time instead is the difference between instant and a visible stall.
   const merc = coords.map((c) => {
     const m = maplibregl.MercatorCoordinate.fromLngLat({ lng: c[0], lat: c[1] });
     return [m.x, m.y];
@@ -2005,6 +2214,7 @@ function teardownRoutes() {
     r.head.remove();
   }
   routes = [];
+  routeHull = null;
   main = null;
 }
 
@@ -2456,70 +2666,21 @@ function initScrubber() {
   });
 }
 
-/* Semicircular speedometer. The arc runs left (slowest) to right (fastest)
- * around a centre at (66, 64) with radius 52 in the SVG's own coordinates. It
- * used to be continuous and to read out in mph; it is now five detents, because
- * five is how many genuinely different speeds this map has and mph was a
- * four-digit number that told you nothing. */
-const SPEEDO = { cx: 66, cy: 64, r: 52, w: 132, h: 74, tickR: 61.5 };
+/* Speed.
+ *
+ * Five detents, because five is how many genuinely different speeds this map
+ * has. They are metres per second along the route, not a rate multiplier: the
+ * run takes total / metresPerSecond() seconds whatever the frame rate.
+ *
+ * There is a sixth position on the button, AUTO, which is not a sixth speed. It
+ * is a flag that hands the choice back to the zoom, and it is where the map
+ * starts - the whole-state view and the windscreen view want speeds two orders
+ * of magnitude apart, and picking one by hand for each of them is not a choice
+ * anybody wants to make. Setting a detent by hand takes the flag off; there is
+ * no way to express "I meant that one" other than to stop overruling it. */
 const NOTCHES = SPEEDS.length;
 
-function speedoPoint(u, radius = SPEEDO.r) {
-  const a = Math.PI - clamp(u, 0, 1) * Math.PI;
-  return [SPEEDO.cx + radius * Math.cos(a), SPEEDO.cy - radius * Math.sin(a)];
-}
-
-// Notch 1 is placed a little way round the arc rather than at the dead left
-// end: at u = 0 the lit arc has zero length and the dial reads as switched off
-// rather than as set to its slowest.
-const notchU = (n) => 0.06 + (0.94 * (clamp(n, 1, NOTCHES) - 1)) / (NOTCHES - 1);
-
-function buildSpeedoTicks() {
-  const g = $('speedo-ticks');
-  for (let n = 1; n <= NOTCHES; n++) {
-    const [x, y] = speedoPoint(notchU(n), SPEEDO.tickR);
-    const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-    c.setAttribute('class', 'tick');
-    c.setAttribute('cx', x.toFixed(2));
-    c.setAttribute('cy', y.toFixed(2));
-    c.setAttribute('r', '1.7');
-    g.appendChild(c);
-  }
-}
-
-function setSpeedUI() {
-  const u = notchU(speedNotch);
-  const [x, y] = speedoPoint(u);
-  $('speedo-lit').setAttribute(
-    'd',
-    `M ${SPEEDO.cx - SPEEDO.r} ${SPEEDO.cy} A ${SPEEDO.r} ${SPEEDO.r} 0 0 1 ${x.toFixed(2)} ${y.toFixed(2)}`,
-  );
-  $('speedo-knob').setAttribute('cx', x.toFixed(2));
-  $('speedo-knob').setAttribute('cy', y.toFixed(2));
-  $('speed-notch').textContent = String(speedNotch);
-
-  const ticks = $('speedo-ticks').children;
-  for (let i = 0; i < ticks.length; i++) ticks[i].classList.toggle('on', i < speedNotch);
-
-  const mode = $('speed-mode');
-  mode.textContent = speedAuto ? 'AUTO' : 'MANUAL';
-  mode.classList.toggle('manual', !speedAuto);
-  mode.title = speedAuto
-    ? 'Speed follows the zoom — drag the dial to set it by hand'
-    : 'Speed set by hand — tap to go back to following the zoom';
-
-  const el = $('speedo');
-  el.setAttribute('aria-valuenow', String(speedNotch));
-  el.setAttribute(
-    'aria-valuetext',
-    `Speed ${speedNotch} of ${NOTCHES}${speedAuto ? ', following the zoom' : ''}` +
-      (total ? `, whole route in ${Math.round(runSeconds())} seconds` : ''),
-  );
-}
-
-/* Setting a notch by hand takes the dial off automatic - there is no way to
- * express "I meant that one" other than to stop overruling it. The AUTO chip is
- * the way back. */
+/* Setting a notch by hand takes the dial off automatic. */
 function setSpeedNotch(n, fromAuto = false) {
   const next = clamp(Math.round(n), 1, NOTCHES);
   const auto = fromAuto ? speedAuto : false;
@@ -2532,60 +2693,6 @@ function setSpeedNotch(n, fromAuto = false) {
 const armAutoSpeed = () => {
   if (speedAuto) setSpeedNotch(autoNotch(map.getZoom()), true);
 };
-
-function initSpeedo() {
-  const el = $('speedo');
-  const svg = el.querySelector('svg');
-  let dragging = false;
-  const at = (e) => {
-    const r = svg.getBoundingClientRect();
-    const sx = ((e.clientX - r.left) / r.width) * SPEEDO.w;
-    const sy = ((e.clientY - r.top) / r.height) * SPEEDO.h;
-    const ang = Math.atan2(SPEEDO.cy - sy, sx - SPEEDO.cx);
-    // Below the centre line there is no arc; snap to whichever end is nearer
-    // rather than letting atan2's wrap fling the value to the far end.
-    const u = ang < 0 ? (sx < SPEEDO.cx ? 0 : 1) : clamp(1 - ang / Math.PI, 0, 1);
-    // Inverse of notchU, so the detent you land on is the one under your finger.
-    return Math.round(((u - 0.06) / 0.94) * (NOTCHES - 1)) + 1;
-  };
-  const apply = (e) => setSpeedNotch(at(e));
-  el.addEventListener('pointerdown', (e) => {
-    dragging = true;
-    el.setPointerCapture(e.pointerId);
-    apply(e);
-    e.preventDefault();
-  });
-  el.addEventListener('pointermove', (e) => {
-    if (dragging) apply(e);
-  });
-  for (const ev of ['pointerup', 'pointercancel']) {
-    el.addEventListener(ev, () => {
-      dragging = false;
-    });
-  }
-  el.addEventListener('keydown', (e) => {
-    const d = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key];
-    if (d === undefined) return;
-    e.preventDefault();
-    setSpeedNotch(speedNotch + d);
-  });
-
-  // The AUTO chip sits inside the dial's own drag surface, so its events have
-  // to be stopped or pressing it would also set a manual notch under the finger.
-  const mode = $('speed-mode');
-  const rearm = (e) => {
-    e.stopPropagation();
-    e.preventDefault();
-    speedAuto = true;
-    setSpeedUI();
-    armAutoSpeed();
-  };
-  mode.addEventListener('pointerdown', (e) => e.stopPropagation());
-  mode.addEventListener('click', rearm);
-  mode.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') rearm(e);
-  });
-}
 
 /* Back to the start of the run, in whatever view you are in. It used to throw
  * you back to the overview as well, which was the only way to get there; there
@@ -2601,30 +2708,96 @@ function backToStart(duration = 800) {
   setView(viewMode, duration);
 }
 
-$('play').onclick = () => setPlaying(!playing);
-$('reset').onclick = () => backToStart();
-$('reset').innerHTML = ICON.reset;
-$('play').innerHTML = ICON.play;
+const PLAY_SVG =
+  '<svg viewBox="0 0 24 24" class="ico-fill" aria-hidden="true"><path d="M8 5.2v13.6a1 1 0 0 0 1.53.85l10.2-6.8a1 1 0 0 0 0-1.7L9.53 4.35A1 1 0 0 0 8 5.2Z"/></svg>';
+const PAUSE_SVG =
+  '<svg viewBox="0 0 24 24" class="ico-fill" aria-hidden="true"><rect x="6" y="4" width="4.5" height="16" rx="1"/><rect x="13.5" y="4" width="4.5" height="16" rx="1"/></svg>';
+
+/* Reads `playing` rather than being told what to draw: this is called from
+ * setPlaying, and from the two places the run stops without anybody pressing
+ * anything, so a second copy of the state here would be a second copy to get
+ * wrong. */
+function paintPlay() {
+  $('playIcon').innerHTML = playing ? PAUSE_SVG : PLAY_SVG;
+  $('playLabel').textContent = playing ? 'PAUSE' : 'PLAY';
+  $('btnPlay').setAttribute('aria-label', playing ? 'Pause' : 'Play');
+}
+
+$('btnPlay').onclick = () => setPlaying(!playing);
+$('btnRestart').onclick = () => backToStart();
 
 /* Which way we are driving, next to play and reset rather than off in the map
  * controls. It belongs with them: it is a property of the run, like where the
  * run starts and whether it is moving, and none of those are things about the
  * map. Pressing it re-runs the road from the other end. */
 function syncDirection() {
-  const b = $('direction');
+  const b = $('btnFlip');
   if (!b) return;
-  b.innerHTML = northbound ? ICON.north : ICON.south;
+  $('headingLetter').textContent = northbound ? 'N' : 'S';
+  $('headingLabel').textContent = northbound ? 'NORTH' : 'SOUTH';
   b.title = northbound
     ? 'Running northbound — tap to run southbound'
     : 'Running southbound — tap to run northbound';
   b.setAttribute('aria-label', b.title);
 }
-$('direction').onclick = () => {
+$('btnFlip').onclick = () => {
   northbound = !northbound;
   syncDirection();
   backToStart();
 };
 syncDirection();
+
+/* The speed button: the five detents plus AUTO, in one cycle.
+ *
+ * The labels are round multipliers and the detents underneath them are not -
+ * the five speeds are spaced about 2.6x apart, not 2x. That is deliberate. The
+ * button says roughly how much faster the next press goes, which is the only
+ * thing anybody wants from it; the exact metres per second are in SPEEDS and
+ * nothing on screen has ever quoted them. */
+const SPEED_STEPS = [
+  { label: 'AUTO', auto: true },
+  { label: '.5\u00d7', step: 1 },
+  { label: '1\u00d7', step: 2 },
+  { label: '2\u00d7', step: 3 },
+  { label: '5\u00d7', step: 4 },
+  { label: '10\u00d7', step: 5 },
+];
+
+/* Where in the cycle the current state sits. Derived rather than remembered:
+ * armAutoSpeed moves the notch under us on every view change, and an index kept
+ * alongside it would drift the first time it did. */
+const speedIdx = () =>
+  speedAuto ? 0 : Math.max(1, SPEED_STEPS.findIndex((s) => s.step === speedNotch));
+
+function setSpeedUI() {
+  const el = $('speedValue');
+  if (!el) return;
+  const cur = SPEED_STEPS[speedIdx()];
+  el.textContent = cur.label;
+  el.classList.toggle('is-auto', !!cur.auto);
+
+  const b = $('btnSpeed');
+  b.title = speedAuto
+    ? `Speed follows the zoom — now at step ${speedNotch} of ${NOTCHES}`
+    : `Speed ${cur.label} — tap for the next step`;
+  b.setAttribute(
+    'aria-label',
+    `Speed ${speedAuto ? 'automatic' : cur.label}` +
+      (total ? `, whole route in ${Math.round(runSeconds())} seconds` : ''),
+  );
+}
+
+$('btnSpeed').onclick = () => {
+  const next = SPEED_STEPS[(speedIdx() + 1) % SPEED_STEPS.length];
+  if (next.auto) {
+    // Not a sixth speed: hand the choice back to the zoom and let it pick.
+    speedAuto = true;
+    setSpeedUI();
+    armAutoSpeed();
+  } else {
+    setSpeedNotch(next.step);
+  }
+};
 
 /* The long explanation, behind the title card.
  *
@@ -2813,9 +2986,8 @@ async function optional(url) {
 }
 
 initScrubber();
-buildSpeedoTicks();
-initSpeedo();
 setSpeedUI();
+paintPlay();
 buildViewSwitch();
 buildRoadSwitch();
 syncViews();
@@ -2825,9 +2997,15 @@ syncRoadSwitch();
 // case where the font never loads at all.
 document.fonts?.ready.then(() => {
   syncRoadSwitch();
+  syncViews();
   chromeBoxes = null; // the title and the readout may have just changed width
 });
-window.addEventListener('resize', syncRoadSwitch);
+// Both indicators are positioned from measurements, so both have to be retaken
+// whenever the buttons under them could have changed size.
+window.addEventListener('resize', () => {
+  syncRoadSwitch();
+  syncViews();
+});
 
 const loaded = new Promise((resolve) => map.on('load', resolve));
 

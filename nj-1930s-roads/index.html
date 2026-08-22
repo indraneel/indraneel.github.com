@@ -43,8 +43,10 @@
     --accent: #7cc4ff;
     --accent-ink: #06243c;
 
-    --ui: ui-sans-serif, -apple-system, "Helvetica Neue", sans-serif;
-    --sign-font: Overpass, "Roboto Condensed", Inter, ui-sans-serif, -apple-system, sans-serif;
+    /* One face for the whole map - the signs, the panes, the title, the prose.
+       The signs are the thing this app is imitating, so the sign face wins
+       everywhere rather than sitting in a box next to a system stack. */
+    --ui: Overpass, "Roboto Condensed", Inter, ui-sans-serif, -apple-system, sans-serif;
 
     --gap: 12px;
     --safe-t: max(10px, env(safe-area-inset-top));
@@ -55,8 +57,10 @@
     /* Bottom-right stack: transport pill, then the view switch above it. The
        scrubber has to clear both, so its floor is derived from these rather
        than guessed twice. */
-    --transport-h: 52px;
-    --views-h: 56px;
+    /* Both panes are 58px of button inside 5px of padding and a 1px border. */
+    --transport-h: 70px;
+    --views-h: 70px;
+    --pane-gap: 14px;
 
     /* The next-exit card now heads the right-hand column, and the scrubber
        starts under it. Its height is reserved rather than measured: measuring
@@ -138,7 +142,7 @@
     font: 700 9px/1 var(--ui); color: var(--ink-dim);
   }
   #title-card p {
-    margin: 4px 0 0; font-size: 11px; line-height: 1.35; color: var(--ink-dim);
+    margin: 4px 0 0; font: 400 11px/1.35 var(--ui); color: var(--ink-dim);
   }
   #title-card .short { display: none; }
 
@@ -174,7 +178,7 @@
     border-radius: 6px; border: 2px solid #fff;
     background: var(--sign-green);
     box-shadow: 0 6px 20px rgba(0, 0, 0, .5);
-    font-family: var(--sign-font); color: #fff;
+    font-family: var(--ui); color: #fff;
     pointer-events: none;
     opacity: 0; transform: translateY(-6px);
     transition: opacity .17s ease, transform .17s ease;
@@ -211,7 +215,7 @@
   #scrubber {
     position: absolute; z-index: 450; right: var(--safe-r);
     top: calc(var(--card-top) + var(--card-h) + 8px);
-    bottom: calc(var(--safe-b) + var(--transport-h) + var(--views-h) + 16px);
+    bottom: calc(var(--safe-b) + var(--transport-h) + var(--pane-gap) + var(--views-h) + 16px);
     width: 44px;
     display: flex; align-items: center; justify-content: center;
     touch-action: none; cursor: pointer;
@@ -266,7 +270,7 @@
     padding: 4px 9px 5px; border-radius: 5px; white-space: nowrap; text-align: right;
     background: var(--sign-green); border: 1.5px solid rgba(255, 255, 255, .85);
     box-shadow: 0 3px 14px rgba(0, 0, 0, .5);
-    font-family: var(--sign-font); color: #fff;
+    font-family: var(--ui); color: #fff;
     font-variant-numeric: tabular-nums;
     pointer-events: none;
   }
@@ -282,94 +286,118 @@
   #scrub-exits i { font-style: normal; opacity: .6; padding: 0 3px; }
   #scrub-exits u { text-decoration: none; opacity: .62; font-weight: 400; }
 
-  /* ---------------------------------------------------------- speedometer -- */
-  /* On its own over the photograph the dial was a few thin strokes on whatever
-     happened to be underneath - unreadable over pale ground, which is half of
-     1930s New Jersey. It sits on glass now, like everything else that is not
-     the map, and says what it is: a dial with no units on it is not
-     self-evidently a speed. */
-  #speedo {
-    position: absolute; z-index: 450; bottom: calc(var(--safe-b) + 2px);
-    left: 50%; transform: translateX(-50%);
-    width: 148px; height: 94px; padding: 6px 8px 8px; box-sizing: border-box;
-    border-radius: 16px;
-    background: rgba(255, 255, 255, .13); backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, .26);
-    box-shadow: 0 6px 22px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .22);
-    touch-action: none; cursor: pointer;
-  }
-  #speedo svg { display: block; width: 132px; height: 74px; overflow: visible; }
-  #speedo .dial { fill: none; stroke: rgba(255, 255, 255, .22); stroke-width: 7; stroke-linecap: round; }
-  #speedo .lit  { fill: none; stroke: var(--accent); stroke-width: 7; stroke-linecap: round; }
-  #speedo .knob { fill: var(--accent); stroke: #111; stroke-width: 2; }
-  #speedo .hit  { fill: none; stroke: transparent; stroke-width: 46; }
-  #speedo .tick { fill: rgba(255, 255, 255, .45); }
-  #speedo .tick.on { fill: var(--accent); }
-  /* Top left, in the corner the arc does not reach. */
-  #speedo-cap {
-    position: absolute; top: 5px; left: 11px; pointer-events: none;
-    font: 700 8px/1 var(--ui); letter-spacing: .13em; text-transform: uppercase;
-    color: rgba(255, 255, 255, .66);
-  }
-  #speedo-label {
-    position: absolute; left: 0; right: 0; bottom: 7px; text-align: center;
-    color: var(--ink); pointer-events: none;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, .85);
-  }
-  #speed-notch { font: 700 17px/1 var(--ui); font-variant-numeric: tabular-nums; }
-  /* The one part of the dial you can press: it re-arms the automatic speed
-     after a manual override, which otherwise has no way back. */
-  #speed-mode {
-    display: inline-block; margin-top: 2px; padding: 1px 6px; border-radius: 3px;
-    font: 700 8.5px/1.35 var(--ui); letter-spacing: .1em;
-    color: var(--ink-dim); border: 1px solid transparent;
-    pointer-events: auto; cursor: pointer;
-  }
-  #speed-mode.manual { color: var(--accent-ink); background: var(--accent); border-color: transparent; }
-
-  /* ------------------------------------------------------------ transport -- */
-  #transport {
-    position: absolute; z-index: 450; right: var(--safe-r); bottom: var(--safe-b);
-    display: flex; gap: 6px; padding: 5px; border-radius: 999px;
-    background: var(--panel); backdrop-filter: blur(6px); border: 1px solid var(--edge);
-  }
-  #transport button {
-    width: 42px; height: 42px; border: 0; border-radius: 50%; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    background: rgba(255, 255, 255, .1); color: var(--ink);
-  }
-  #transport button#play { background: var(--accent); color: var(--accent-ink); }
-  #transport button:active { transform: translateY(1px); }
-  /* No blanket fill here. Half these icons are stroked outlines with
-     fill="none" on the root, and a CSS fill beats that presentation attribute -
-     which is what turned the reset arrow into a solid blob. Each icon now
-     declares its own paint. */
-  #transport svg { width: 18px; height: 18px; }
-
-  /* ---------------------------------------------------------------- views -- */
-  /* The three ways of looking at the road, as one three-position control
-     stacked directly above the transport pill. Named as well as drawn: three
-     icons in a row is a guessing game, and these three change the whole
-     behaviour of the map rather than toggling one thing. */
+  /* ------------------------------------------------ bottom-right stack -- */
+  /* Two panes, stacked: the camera modes above, the run controls below. Only
+     position lives on the ids - the panes' own look is in .mode-pane and
+     .play-pane, so the two shells stay identical to each other by
+     construction. Both ids are kept because the sign-avoidance boxes and the
+     scrubber's floor are measured off them. */
   #views {
     position: absolute; z-index: 450; right: var(--safe-r);
-    bottom: calc(var(--safe-b) + var(--transport-h) + 8px);
-    display: flex; gap: 4px; padding: 4px; border-radius: 16px;
-    background: var(--panel); backdrop-filter: blur(6px); border: 1px solid var(--edge);
+    bottom: calc(var(--safe-b) + var(--transport-h) + var(--pane-gap));
   }
-  #views button {
-    min-width: 54px; height: 46px; padding: 0 7px; border: 0; border-radius: 12px;
-    cursor: pointer; display: flex; flex-direction: column; gap: 2px;
-    align-items: center; justify-content: center;
-    background: rgba(255, 255, 255, .08); color: var(--ink);
+  #transport {
+    position: absolute; z-index: 450; right: var(--safe-r); bottom: var(--safe-b);
   }
-  #views button.on { background: var(--accent); color: var(--accent-ink); }
-  #views button:active { transform: translateY(1px); }
-  #views svg { width: 18px; height: 18px; }
-  #views .lbl {
-    font: 700 8.5px/1 var(--ui); letter-spacing: .07em; text-transform: uppercase;
-    white-space: nowrap;
+
+  /* The shell both panes share, cut to match the NJTP/GSP switch at the top of
+     the screen: same radius family, same dark glass, same one-pixel highlight
+     along the top edge. */
+  .mode-pane, .play-pane {
+    display: flex;
+    padding: 5px;
+    background: #141618;
+    border: 1px solid #2b2f33;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .6), inset 0 1px 0 rgba(255, 255, 255, .045);
+    font-family: var(--ui);
   }
+  .mode-pane { position: relative; gap: 2px; }
+  .play-pane { gap: 4px; align-items: center; }
+
+  /* ------------------------------------------------ mode segmented control -- */
+  /* One pill that slides, rather than three buttons that light up. The modes
+     are mutually exclusive and the pill is the only thing on screen that says
+     so - three independently lit buttons read as three toggles. */
+  .mode-pill {
+    position: absolute;
+    top: 5px; left: 5px;
+    width: 76px; height: 58px;
+    border-radius: 11px;
+    background: linear-gradient(180deg, #12864a 0%, #0a6d3b 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22), 0 2px 8px rgba(0, 0, 0, .45);
+    transition: transform 220ms cubic-bezier(.4, .9, .2, 1);
+    pointer-events: none;
+  }
+  .mode-btn {
+    position: relative;
+    width: 76px; height: 58px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 6px;
+    background: transparent; border: 0; border-radius: 11px;
+    cursor: pointer;
+    color: #8b9298;
+    transition: color 180ms;
+    -webkit-appearance: none;
+    font-family: inherit;
+  }
+  .mode-btn:hover { color: #fff; }
+  .mode-btn.is-active { color: #fff; }
+  .mode-btn span, .pb-btn span:last-child {
+    font-size: 11px; font-weight: 700; letter-spacing: .08em;
+  }
+
+  /* ------------------------------------------------------ playback buttons -- */
+  .pb-btn {
+    width: 64px; height: 58px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 6px;
+    background: #1e2225;
+    border: 1px solid #2f3438;
+    border-radius: 11px;
+    cursor: pointer;
+    color: #b9bfc5;
+    transition: background 150ms, color 150ms;
+    -webkit-appearance: none;
+    font-family: inherit;
+  }
+  .pb-btn:hover { background: #262b2f; color: #fff; }
+  .pb-primary {
+    color: #fff;
+    border: 0;
+    background: linear-gradient(180deg, #12864a 0%, #0a6d3b 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22), 0 2px 8px rgba(0, 0, 0, .45);
+  }
+  .pb-primary:hover { background: linear-gradient(180deg, #159754 0%, #0c7b43 100%); }
+
+  .pb-icon { display: flex; align-items: center; gap: 2px; }
+  .pb-heading span { font-size: 16.5px; font-weight: 700; letter-spacing: -.01em; }
+  .pb-value {
+    font-size: 18px; font-weight: 700; letter-spacing: -.02em;
+    font-variant-numeric: tabular-nums; color: #e8edf1;
+  }
+  /* AUTO is four letters where the rest are two or three, and at 16px it is
+     wider than the button. It is a word, not a number, so it can be smaller
+     without reading as a different kind of value. */
+  .pb-value.is-auto { font-size: 12.5px; letter-spacing: .05em; }
+
+  /* --------------------------------------------------------------- icons -- */
+  .mode-btn svg, .pb-btn svg {
+    width: 17px; height: 17px;
+    fill: none; stroke: currentColor; stroke-width: 2;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
+  .pb-btn svg { width: 16px; height: 16px; }
+  .pb-btn .ico-arrow { width: 12px; height: 16px; }
+  /* Half these icons are stroked outlines and half are solid. Each shape says
+     which it is; a blanket fill on the <svg> would turn the outlines into
+     blobs, which is exactly what it used to do to the restart arrow. */
+  .pb-btn .ico-fill, .pb-btn svg .ico-fill { fill: currentColor; stroke: none; }
+
+  .mode-btn:focus-visible, .pb-btn:focus-visible {
+    outline: 2px solid #3ddc84; outline-offset: 2px;
+  }
+  .mode-btn:active, .pb-btn:active { transform: translateY(1px); }
 
   /* ----------------------------------------------------------------- note -- */
   /* Says which alignments are running. Fixed height so nothing below it moves. */
@@ -390,7 +418,7 @@
     padding: 3px 8px 3px 6px; border-radius: 4px;
     background: var(--sign-green); border: 1px solid rgba(255,255,255,.75);
     box-shadow: 0 2px 10px rgba(0,0,0,.5);
-    font-family: var(--sign-font); font-size: 10.5px; color: #fff;
+    font-family: var(--ui); font-size: 10.5px; color: #fff;
     white-space: nowrap; max-width: 42vw;
     will-change: transform, opacity;
   }
@@ -404,7 +432,7 @@
   .sign {
     position: absolute; left: 0; top: 0; display: flex; align-items: stretch;
     max-width: 44vw; box-sizing: border-box;
-    font-family: var(--sign-font);
+    font-family: var(--ui);
     background: var(--sign-green);
     border: 2px solid #fff; border-radius: 4px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, .55);
@@ -495,6 +523,11 @@
     filter: drop-shadow(0 0 6px rgba(255, 225, 77, .55)) drop-shadow(0 2px 3px rgba(0, 0, 0, .6));
   }
 
+  /* MapLibre plants Helvetica on .maplibregl-map, which is an ancestor of the
+     credit line and the scale bar, so those two are the last things on screen
+     not in the sign face. One rule takes the whole subtree back. */
+  .maplibregl-map, .maplibregl-map button { font-family: var(--ui); }
+
   /* Two classes' worth of specificity, because MapLibre's own compact rule is
      .maplibregl-ctrl-attrib.maplibregl-compact and it sets black text. */
   .maplibregl-ctrl-attrib, .maplibregl-ctrl-scale,
@@ -511,7 +544,7 @@
 
   @media (max-width: 560px) {
     :root {
-      --transport-h: 48px; --views-h: 50px;
+      --transport-h: 62px; --views-h: 62px; --pane-gap: 10px;
       /* A phone's top row cannot hold the card, the road switch and the title
          side by side - a readable card is already well past half the width.
          The switch keeps the top, because it says which map you are looking
@@ -526,43 +559,35 @@
     #title-card h1 { font-size: 11.5px; }
     #title-card p, #title-card .full { display: none; }
     #title-card .short { display: inline; }
-    /* The bottom row is three columns on a phone: the map's own controls on the
-       left, the view and transport pills on the right, and whatever is left in
-       the middle. Centring the dial on the viewport puts it half under the
-       pills, so it is offset past the control column instead. */
-    #speedo {
-      width: 124px; height: 82px; padding: 5px 6px 6px;
-      left: calc(var(--safe-l) + 80px); transform: none;
-    }
     #note { left: calc(var(--safe-l) + 80px); transform: none; text-align: left; }
-    #speedo svg { width: 112px; height: 64px; }
-    #speedo-cap { top: 4px; left: 8px; }
-    #speedo-label { bottom: 5px; }
-    #transport button { width: 38px; height: 38px; }
-    #views button { min-width: 46px; height: 40px; padding: 0 4px; }
-    #views svg { width: 16px; height: 16px; }
-    #views .lbl { font-size: 8px; letter-spacing: .04em; }
+    /* Both panes narrow together. The pill is measured off the buttons rather
+       than hard-coded, so it follows them across the breakpoint on its own. */
+    .mode-pill, .mode-btn { width: 62px; height: 50px; }
+    .pb-btn { width: 56px; height: 50px; }
+    .mode-btn, .pb-btn { gap: 4px; }
+    .mode-btn svg, .pb-btn svg { width: 15px; height: 15px; }
+    .pb-btn .ico-arrow { width: 11px; height: 15px; }
+    .mode-btn span, .pb-btn span:last-child { font-size: 9.5px; letter-spacing: .03em; }
+    .pb-value { font-size: 15.5px; }
+    .pb-value.is-auto { font-size: 11.5px; }
+    .pb-heading span { font-size: 14.5px; }
     .sign-badge { font-size: 15px; padding: 2px 8px 3px; }
     #road-switch button { padding: 6px 14px; font-size: 11px; }
   }
 
-  /* Below about 370 px the middle column of that bottom row is 60 px wide and
-     the dial is 112, so there is no middle any more. The dial joins the
-     right-hand stack instead - scrubber, dial, views, transport, one column -
-     and the scrubber's floor rises to make room. The note drops to the floor,
-     which is the only strip of the bottom row still empty. */
+  /* Below about 370 px four run buttons at 56 px are wider than the space left
+     beside the map's own controls. They lose another 6 px each rather than
+     wrapping: a two-row pane would put restart under play, and the whole point
+     of one row is that the run controls read as one thing. */
   @media (max-width: 370px) {
-    :root { --speedo-h: 82px; }
-    #speedo {
-      left: auto; right: var(--safe-r); transform: none;
-      bottom: calc(var(--safe-b) + var(--transport-h) + var(--views-h) + 14px);
-    }
-    #scrubber {
-      bottom: calc(var(--safe-b) + var(--transport-h) + var(--views-h) + var(--speedo-h) + 22px);
-    }
+    :root { --transport-h: 58px; --views-h: 58px; }
+    .mode-pill, .mode-btn { width: 56px; height: 46px; }
+    .pb-btn { width: 50px; height: 46px; }
+    .mode-btn span, .pb-btn span:last-child { font-size: 8.5px; letter-spacing: .01em; }
     #note { bottom: var(--safe-b); }
     #title-card h1 { font-size: 10.5px; }
   }
+
 </style>
 </head>
 <body>
@@ -607,28 +632,61 @@
     </div>
   </div>
 
-  <div id="speedo" tabindex="0" role="slider"
-       aria-label="Speed" aria-valuemin="1" aria-valuemax="5" aria-valuenow="5">
-    <div id="speedo-cap">Speed</div>
-    <svg viewBox="0 0 132 74" aria-hidden="true">
-      <path class="dial" d="M 14 64 A 52 52 0 0 1 118 64"></path>
-      <path class="lit" id="speedo-lit" d="M 14 64 A 52 52 0 0 1 118 64"></path>
-      <g id="speedo-ticks"></g>
-      <path class="hit" d="M 14 64 A 52 52 0 0 1 118 64"></path>
-      <circle class="knob" id="speedo-knob" cx="118" cy="64" r="6"></circle>
-    </svg>
-    <div id="speedo-label">
-      <div><span id="speed-notch">5</span></div>
-      <span id="speed-mode" role="button" tabindex="0" title="Speed follows the zoom">AUTO</span>
-    </div>
+  <!-- The three camera modes, as one segmented control with a single sliding
+       pill: three separate lit buttons said "three toggles", and these are
+       mutually exclusive. #views keeps the id because the sign-avoidance code
+       and the scrubber's floor are both measured off it. -->
+  <div id="views" class="mode-pane" role="radiogroup" aria-label="Camera mode">
+    <div class="mode-pill" id="modePill"></div>
+
+    <button class="mode-btn is-active" type="button" data-mode="state" role="radio" aria-checked="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5h4"/><path d="M20 9V5h-4"/><path d="M4 15v4h4"/><path d="M20 15v4h-4"/></svg>
+      <span>STATE</span>
+    </button>
+
+    <button class="mode-btn" type="button" data-mode="top" role="radio" aria-checked="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/></svg>
+      <span>FOLLOW</span>
+    </button>
+
+    <button class="mode-btn" type="button" data-mode="drive" role="radio" aria-checked="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20 10 5"/><path d="M20 20 14 5"/><path d="M7.5 12.5h9"/></svg>
+      <span>DRIVE</span>
+    </button>
   </div>
 
-  <div id="views" role="group" aria-label="View"></div>
+  <!-- Run controls. Speed used to be a dial floating on its own in the middle
+       of the bottom row; it is a fourth button here, because it is a property
+       of the run exactly like the other three and five detents do not need a
+       protractor to choose between. -->
+  <div id="transport" class="play-pane">
+    <button class="pb-btn" type="button" id="btnSpeed">
+      <span class="pb-value" id="speedValue">AUTO</span>
+      <span>SPEED</span>
+    </button>
 
-  <div id="transport">
-    <button id="play" type="button" aria-label="Play"></button>
-    <button id="reset" type="button" aria-label="Back to the start"></button>
-    <button id="direction" type="button" aria-label="Direction of travel"></button>
+    <button class="pb-btn pb-primary" type="button" id="btnPlay" aria-label="Play">
+      <span class="pb-icon" id="playIcon">
+        <svg viewBox="0 0 24 24" class="ico-fill" aria-hidden="true"><path d="M8 5.2v13.6a1 1 0 0 0 1.53.85l10.2-6.8a1 1 0 0 0 0-1.7L9.53 4.35A1 1 0 0 0 8 5.2Z"/></svg>
+      </span>
+      <span id="playLabel">PLAY</span>
+    </button>
+
+    <button class="pb-btn" type="button" id="btnRestart" aria-label="Back to the start">
+      <span class="pb-icon">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14"/><path d="M19 5.6v12.8a1 1 0 0 1-1.55.83l-9.2-6.4a1 1 0 0 1 0-1.66l9.2-6.4A1 1 0 0 1 19 5.6Z" class="ico-fill"/></svg>
+      </span>
+      <span>RESTART</span>
+    </button>
+
+    <button class="pb-btn" type="button" id="btnFlip">
+      <span class="pb-icon pb-heading">
+        <svg viewBox="0 0 12 24" class="ico-arrow" aria-hidden="true"><path d="M6 4v15"/><path d="M2.5 15.5 6 19.5l3.5-4"/></svg>
+        <span id="headingLetter">N</span>
+      </span>
+      <span id="headingLabel">NORTH</span>
+    </button>
+
   </div>
 
   <!-- The long explanation. Written in Simplified Technical English: short
@@ -664,11 +722,12 @@
           <li>Select a view: <b>State</b> shows all of the road. <b>Follow</b> looks
               straight down at it. <b>Drive</b> looks along it in 3D.</li>
           <li>Press play at the bottom right.</li>
-          <li>Turn the dial to set the speed. The dial has five steps. It follows the
-              zoom until you move it. Press AUTO to make it follow the zoom again.</li>
+          <li>Press the speed button to set the speed. It has five steps, and one
+              more step named AUTO. On AUTO the speed follows the zoom.</li>
           <li>Drag the bar on the right to go to a different place on the road. North
               is at the top.</li>
           <li>Press the direction button to drive the other way.</li>
+          <li>Press a view button again to go back to that view.</li>
         </ol>
         <p class="dim">You can also zoom, turn and tilt the map at any time. Press a
            view button again to go back to that view.</p>
