@@ -1192,6 +1192,7 @@ function render(dt = null, now = performance.now()) {
     ? (window.innerWidth < 560 ? 'Both spurs' : 'Eastern & Western spurs')
     : '';
   if (!scrubbing) setScrubUI(total ? travelled / total : 0);
+  syncUrl(); // covers the head moving and, while following, the camera with it
 }
 
 function tick(ts) {
@@ -1516,8 +1517,15 @@ function showOverview(duration = 0) {
  * too - the first press dropped you out of the overview and onto the road
  * whether you wanted that or not, which made "watch the whole state fill in"
  * impossible to ask for. Now the view is a decision you make with the
- * three-way control and playback leaves it alone. */
-function setView(mode, duration = 1100) {
+ * three-way control and playback leaves it alone.
+ *
+ * `cam` is a camera out of the URL, and only the two free numbers in it are
+ * honoured. In the whole-state view the camera is nobody's but yours, so a
+ * restored centre and zoom replace the framing outright. In the two following
+ * views the centre belongs to the head - restoring one would be overwritten by
+ * the next frame - so only the zoom carries over, as the cruise zoom the follow
+ * loop eases back to. */
+function setView(mode, duration = 1100, cam = null) {
   const v = VIEWS[mode];
   if (!v) return;
   viewMode = mode;
@@ -1543,8 +1551,16 @@ function setView(mode, duration = 1100) {
   if (!v.follow) {
     intro = false;
     setFollowing(false);
-    showOverview(duration);
+    // Both numbers or neither: a zoom without a centre is a scale applied to
+    // wherever the map happens to be pointing, which is not a view of anything.
+    if (cam?.center && cam.zoom !== null && cam.zoom !== undefined) {
+      const { bearing: b0, pitch } = overviewCamera();
+      map.jumpTo({ center: cam.center, zoom: cam.zoom, bearing: b0, pitch });
+    } else {
+      showOverview(duration);
+    }
     armAutoSpeed();
+    syncUrl();
     return;
   }
 
@@ -1555,10 +1571,11 @@ function setView(mode, duration = 1100) {
   render();
   const d = localDist(main);
   const token = ++viewToken;
+  const zoom = cam?.zoom ?? v.zoom;
   map.easeTo({
     // Framed for where the camera is going, not for where it is.
-    center: pointAt(main, d + dirSign() * aheadMetres(v.low, v.zoom, v.pitch)),
-    zoom: v.zoom,
+    center: pointAt(main, d + dirSign() * aheadMetres(v.low, zoom, v.pitch)),
+    zoom,
     pitch: v.pitch,
     bearing: v.headingUp ? bearingAt(main, d) : 0,
     duration,
@@ -1591,10 +1608,11 @@ function setView(mode, duration = 1100) {
     bearing = null;
     lastFrame = null;
     zoomTarget = null;
-    cruiseZoom = v.zoom;
+    cruiseZoom = zoom;
     setFollowing(true);
     armAutoSpeed();
     applyTerrain();
+    syncUrl();
     if (playing) requestAnimationFrame(tick);
     else render();
   };
@@ -1604,6 +1622,7 @@ function setView(mode, duration = 1100) {
 function setPlaying(on) {
   playing = on;
   paintPlay();
+  syncUrl(); // pausing renders nothing, so it has to say so itself
   document.body.classList.toggle('driving', on);
   lastFrame = null;
   if (!on) {
@@ -2742,6 +2761,7 @@ function syncDirection() {
     ? 'Running northbound — tap to run southbound'
     : 'Running southbound — tap to run northbound';
   b.setAttribute('aria-label', b.title);
+  syncUrl();
 }
 $('btnFlip').onclick = () => {
   northbound = !northbound;
@@ -2788,6 +2808,7 @@ function setSpeedUI() {
     `Speed ${speedAuto ? 'automatic' : cur.label}` +
       (total ? `, whole route in ${Math.round(runSeconds())} seconds` : ''),
   );
+  syncUrl();
 }
 
 $('btnSpeed').onclick = () => {
@@ -2906,6 +2927,9 @@ map.on('move', () => {
   renderSigns(performance.now());
   renderEdgeLabels();
 });
+// A pan or a zoom of your own changes the view without touching the run, so
+// nothing above would have noticed it. Throttled like every other caller.
+map.on('moveend', syncUrl);
 // The map's own controls appear as it loads, and the attribution changes width
 // when terrain adds its credit - both move the column the signs dodge.
 map.on('load', () => {
@@ -2921,12 +2945,175 @@ window.addEventListener('resize', () => {
 });
 
 // --------------------------------------------------------------------------
+// The address bar
+// --------------------------------------------------------------------------
+
+/* Everything the map is showing, written into the URL fragment.
+ *
+ * Two jobs, and they pull in the same direction: a reload puts you back where
+ * you were rather than at the top of the Turnpike, and the address bar is a
+ * shareable pointer at one moment on one road. "Come and look at Newark Bay
+ * from the windscreen" is a link, not a list of instructions.
+ *
+ * The fragment rather than a query string, because this ships as static files
+ * under a subpath on GitHub Pages: a fragment never reaches a server, never
+ * changes which file is fetched, and survives the trailing-slash redirect.
+ *
+ * The names are the ones on the controls, not the ones in this file. The
+ * middle camera mode is `top` internally and "Follow" on the switch, and the
+ * switch is what somebody reading their own URL has in front of them.
+ */
+const ROAD_TO_URL = { NJTP: 'njt', GSP: 'gsp' };
+const URL_TO_ROAD = { njt: 'NJTP', gsp: 'GSP' };
+const MODE_TO_URL = { state: 'state', top: 'follow', drive: 'drive' };
+const URL_TO_MODE = { state: 'state', follow: 'top', drive: 'drive' };
+
+/* Position is written as miles from the southern end - the number already on
+ * the scrubber - rather than as a fraction of the route. A fraction means two
+ * different places on the two roads, and a URL you can half-read is worth more
+ * than three saved characters. Two decimals is 16 m, well under the 1/1000 the
+ * scrubber itself quantises to. */
+function urlHash() {
+  const c = map.getCenter();
+  const q = new URLSearchParams();
+  q.set('road', ROAD_TO_URL[net.key] || 'njt');
+  q.set('mode', MODE_TO_URL[viewMode] || 'state');
+  q.set('dir', northbound ? 'n' : 's');
+  q.set('mi', (travelled / MI).toFixed(2));
+  q.set('speed', speedAuto ? 'auto' : String(speedNotch));
+  // Only when it is true: `play=0` in a link is noise, and its absence already
+  // says paused.
+  if (playing) q.set('play', '1');
+  q.set('c', `${c.lng.toFixed(5)},${c.lat.toFixed(5)}`); // 5 dp is about a metre
+  q.set('z', map.getZoom().toFixed(2));
+  // URLSearchParams percent-encodes the comma in the centre pair. It is a legal
+  // literal in a fragment and it parses back identically, so put it back and
+  // keep the coordinates readable.
+  return `#${q.toString().replace(/%2C/g, ',')}`;
+}
+
+/* The other direction. Every field is optional and independently validated: a
+ * hand-edited URL with one bad number should lose that one field, not the
+ * whole restore. Absent and unparseable are the same answer - null - and the
+ * caller falls back to the opening state for each. */
+function readUrl() {
+  const q = new URLSearchParams(location.hash.slice(1));
+  if (![...q.keys()].length) return null;
+  const num = (k) => {
+    const v = parseFloat(q.get(k));
+    return Number.isFinite(v) ? v : null;
+  };
+  const speed = (q.get('speed') || '').toLowerCase();
+  const manual = /^[1-5]$/.test(speed);
+  const dir = (q.get('dir') || '').toLowerCase();
+  const mi = num('mi');
+  const c = (q.get('c') || '').split(',').map(Number);
+  const z = num('z');
+  const onEarth =
+    c.length === 2 && c.every(Number.isFinite) && Math.abs(c[0]) <= 180 && Math.abs(c[1]) <= 85;
+  return {
+    net: URL_TO_ROAD[(q.get('road') || '').toLowerCase()] ?? null,
+    viewMode: URL_TO_MODE[(q.get('mode') || '').toLowerCase()] ?? null,
+    travelled: mi === null ? null : mi * MI, // clamped against `total` on apply
+    northbound: dir === 'n' ? true : dir === 's' ? false : null,
+    playing: q.get('play') === '1',
+    speedAuto: speed === 'auto' ? true : manual ? false : null,
+    speedNotch: manual ? Number(speed) : null,
+    center: onEarth ? c : null,
+    zoom: z === null ? null : clamp(z, MIN_ZOOM, MAX_ZOOM),
+  };
+}
+
+/* Writing, coalesced.
+ *
+ * The camera moves every frame of a run, and replaceState is rate-limited by
+ * the browser - Safari starts throwing at around one call per 300 ms. So this
+ * is a trailing throttle rather than a write: callers say "the state changed"
+ * as often as they like and at most one call lands per interval, always with
+ * the state as it is when the timer fires rather than as it was when the
+ * change happened. Nothing here reads the URL back, so a late write is only
+ * ever a slightly stale address bar. */
+const URL_MIN_MS = 600;
+let urlWritten = null; // the last fragment we put there ourselves
+let urlTimer = 0;
+let urlLast = 0;
+
+function pushUrl() {
+  urlTimer = 0;
+  urlLast = performance.now();
+  const h = urlHash();
+  if (h === urlWritten) return;
+  urlWritten = h;
+  // replaceState, never pushState: a per-frame history entry would make the
+  // back button a way to step backwards through a drive rather than a way off
+  // the page. Wrapped because it throws on a file:// origin, where the map
+  // still works and the address bar simply does not follow.
+  try {
+    history.replaceState(history.state, '', h);
+  } catch {
+    /* opened from the filesystem; nothing to do about it */
+  }
+}
+
+function syncUrl() {
+  if (!main || urlTimer) return; // nothing to describe yet, or already queued
+  urlTimer = setTimeout(pushUrl, Math.max(0, URL_MIN_MS - (performance.now() - urlLast)));
+}
+
+/* Put the run into a described state, or back to its opening one.
+ *
+ * Shared by the boot restore, by a road change, and by someone editing the
+ * fragment by hand, so all three land in the same place. Called with null it is
+ * exactly what switching road used to do inline: north, at the southern end,
+ * paused, whole-state view. */
+function restoreRun(st = null) {
+  northbound = st?.northbound ?? true;
+  travelled = st?.travelled == null ? runStart() : clamp(st.travelled, 0, total);
+  bearing = null;
+  syncDirection(); // the flip button is the one thing a road change never repainted
+
+  if (st?.speedAuto === false) setSpeedNotch(st.speedNotch);
+  else if (st?.speedAuto) speedAuto = true;
+  setSpeedUI();
+
+  setPlaying(false);
+  setFollowing(false);
+  render();
+  /* Zero duration in every case. A restore is not an arrival: the camera has
+   * nothing to fly from, and a 1.1 s swoop out of a blank map to the place the
+   * link named is a beat of nothing followed by a beat of motion sickness. */
+  setView(st?.viewMode ?? 'state', 0, st);
+  if (st?.playing) setPlaying(true);
+}
+
+/* Apply a fragment to a map that is already up. A different road has to go the
+ * long way round - the geometry, the signs, the minimap and the palette all
+ * change - and loadNetwork finishes by calling restoreRun itself. */
+function applyUrl(st) {
+  if (st.net && st.net !== net.key) {
+    loadNetwork(st.net, st).catch(reportFailure);
+    return;
+  }
+  restoreRun(st);
+}
+
+/* replaceState fires neither popstate nor hashchange, so anything arriving here
+ * came from outside: the fragment typed or pasted into the bar, or a back that
+ * lands on one of those edits. Comparing against what we last wrote keeps a
+ * normalising rewrite from looking like a fresh instruction. */
+window.addEventListener('hashchange', () => {
+  if (location.hash === urlWritten) return;
+  const st = readUrl();
+  if (st) applyUrl(st);
+});
+
+// --------------------------------------------------------------------------
 // Boot
 // --------------------------------------------------------------------------
 
 const routeCache = new Map();
 
-async function loadNetwork(key) {
+async function loadNetwork(key, restore = null) {
   const target = NETWORKS[key];
   if (!routeCache.has(key)) {
     const res = await fetch(target.file);
@@ -2960,20 +3147,16 @@ async function loadNetwork(key) {
   rankMunicipalities();
   buildMinimap(); // the road it draws, and the colour it draws it in, both changed
 
-  northbound = true;
-  travelled = runStart();
   cruiseZoom = VIEWS.top.zoom;
-  bearing = null;
-
-  setPlaying(false);
-  setFollowing(false);
-  render();
-  // Switching road puts you back at the whole-state view. The other two are
-  // framed on a head that has just moved to the other end of a different road,
-  // and landing in a windscreen view of somewhere you did not ask for is worse
-  // than a beat of orientation.
-  setView('state', 0);
-  setSpeedUI();
+  /* Switching road puts you back at the whole-state view, at the southern end,
+   * heading north. The other two views are framed on a head that has just moved
+   * to the other end of a different road, and landing in a windscreen view of
+   * somewhere you did not ask for is worse than a beat of orientation.
+   *
+   * `restore` is the exception, and it is not a road switch: it is the fragment
+   * naming a road, a place on it and a view of it all at once, which is exactly
+   * the arrival the paragraph above is guarding against for the switch. */
+  restoreRun(restore);
 }
 
 /* Optional data. A missing file is a smaller map, not a broken one, so these
@@ -3025,7 +3208,10 @@ Promise.all([
     allExits = exits;
     if (!exits) console.info('exits-points.json not found — signs off');
     setupTerrain();
-    return loadNetwork('NJTP');
+    // The fragment picks the road as well as the place on it, so it has to be
+    // read before the first load rather than applied on top of one.
+    const start = readUrl();
+    return loadNetwork(start?.net || 'NJTP', start);
   })
   .catch(reportFailure);
 
@@ -3045,6 +3231,7 @@ window.__seek = (metres) => {
   render();
   return routes.map((r) => ({ id: r.id, tip: r.tip, running: isRunning(r), local: localDist(r) }));
 };
+window.__url = urlHash;
 window.__state = () => ({
   net: net.key,
   travelled,
