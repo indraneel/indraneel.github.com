@@ -60,6 +60,23 @@ const NETWORKS = {
 };
 const NETWORK_ORDER = ['NJTP', 'GSP'];
 
+/* The 1927 state highway system, digitized from a period map (Wikimedia
+ * Commons, CC0) - a toggle-able overlay rather than a network: it predates
+ * both toll roads by a decade or more and is not tied to which one is
+ * selected, so it stays on or off across a road switch.
+ *
+ * The source colours two kinds of line - `#ff0000` for the numbered routes as
+ * originally laid out, `#ffaaff` for the bypasses, spurs and realignments
+ * layered on through the rest of the decade - and HIST_1927 keeps that split
+ * rather than flattening it, just retinted into one hue so the two still read
+ * as one system. See DESIGN.md for why this particular colour. */
+const HIST_1927 = {
+  file: '1927-highways.geojson',
+  color: '#d98c46', // a fifth hue: not the greens, not the golds, not the
+                     // interface's blue - see DESIGN.md section 1.
+  mainStroke: '#ff0000', // the routes-as-laid-out colour in the source data
+};
+
 // Width the highlight is painted at, in real-world metres. The Turnpike's
 // actual right-of-way through the dual-dual section is around 110 m; this is
 // deliberately 3x that. It stopped being a measurement and became a graphic
@@ -297,6 +314,12 @@ const ICON = {
   // so it follows the network's gold.
   head:
     '<svg viewBox="0 0 24 24"><path d="M12 1.9 21.1 21.6a.62.62 0 0 1-.85.8L12 18.1l-8.25 4.3a.62.62 0 0 1-.85-.8z"/></svg>',
+  // Stacked planes - the standard "map layers" glyph, for the 1927 overlay
+  // toggle. Outline rather than filled: it sits in the same white square as
+  // the heading arrow and a second solid glyph next to it would read heavier
+  // than intended.
+  layers:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/><path d="m3 17.5 9 5 9-5"/></svg>',
 };
 
 // --------------------------------------------------------------------------
@@ -437,6 +460,8 @@ let muniNear = []; // towns close to the current road, for the edge indicators
 let muniPointsByName = new Map(); // every label point per displayed name
 let edgePool = []; // reused DOM elements for those indicators
 let signBoxes = []; // where the exit signs landed this frame, so markers can dodge them
+let hist1927Data = null; // the 1927 highways, once fetched - null if the file is missing
+let hist1927On = false; // whether the overlay is currently shown
 
 // --------------------------------------------------------------------------
 // Route geometry
@@ -1702,6 +1727,19 @@ const ctlGroup = new ButtonGroup([
         : 'North up (tap to turn with the road)',
     }),
   },
+  {
+    onClick: () => setHist1927(!hist1927On),
+    state: () => ({
+      icon: ICON.layers,
+      on: hist1927On,
+      disabled: !hist1927Data,
+      title: !hist1927Data
+        ? '1927 state highways — not available'
+        : hist1927On
+          ? '1927 state highways — on (tap to hide)'
+          : 'Show the 1927 state highway map',
+    }),
+  },
 ]);
 
 const syncControls = () => {
@@ -2082,6 +2120,90 @@ function rankMunicipalities() {
   }
 
   if (map.getSource('muni-labels')) map.getSource('muni-labels').setData(muniLabelData);
+}
+
+// --------------------------------------------------------------------------
+// 1927 state highways
+//
+// A single static overlay, added once at boot alongside the municipal
+// boundaries and left alone across every road switch - unlike `routes`, it is
+// not rebuilt by loadNetwork(). Off by default: it is a reference layer for
+// someone curious what was already on the ground, not part of the two roads
+// this map is actually about.
+// --------------------------------------------------------------------------
+
+/* Two layers rather than one filtered layer with a `case` wrapped around two
+ * zoom-driven paint expressions - see the note above BAND_FLOOR on how little
+ * nesting MapLibre tolerates between a `case`/`match` and an `interpolate`
+ * before a paint property just fails to draw. Kept apart, `-main` (the routes
+ * as originally numbered) and `-alt` (the bypasses, spurs and realignments
+ * layered on afterward) can each carry a plain per-zoom ramp, and `-alt` is
+ * tuned lighter so a road that never settled on one alignment does not
+ * out-shout the ones that did. */
+function addHistoricHighways(collection) {
+  hist1927Data = collection;
+  map.addSource('hwy1927', { type: 'geojson', data: collection });
+
+  const layout = { 'line-cap': 'round', 'line-join': 'round', visibility: 'none' };
+  const isMain = ['==', ['get', 'stroke'], HIST_1927.mainStroke];
+  map.addLayer({
+    id: 'hwy1927-alt',
+    type: 'line',
+    source: 'hwy1927',
+    layout,
+    filter: ['!', isMain],
+    paint: {
+      'line-color': HIST_1927.color,
+      'line-opacity': ['interpolate', ['linear'], ['zoom'], 8, 0.24, 12, 0.32, 16, 0.42],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 8, 2.8, 12, 5.2, 16, 8.4],
+    },
+  });
+  map.addLayer({
+    id: 'hwy1927-main',
+    type: 'line',
+    source: 'hwy1927',
+    layout,
+    filter: isMain,
+    paint: {
+      'line-color': HIST_1927.color,
+      'line-opacity': ['interpolate', ['linear'], ['zoom'], 8, 0.46, 12, 0.58, 16, 0.7],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 8, 4, 12, 7.6, 16, 12],
+    },
+  });
+
+  for (const id of ['hwy1927-main', 'hwy1927-alt']) {
+    map.on('mouseenter', id, () => (map.getCanvas().style.cursor = 'pointer'));
+    map.on('mouseleave', id, () => (map.getCanvas().style.cursor = ''));
+    map.on('click', id, showHistoricPopup);
+  }
+}
+
+function setHist1927(on) {
+  hist1927On = !!(on && hist1927Data);
+  const vis = hist1927On ? 'visible' : 'none';
+  for (const id of ['hwy1927-main', 'hwy1927-alt']) {
+    if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis);
+  }
+  ctlGroup.sync();
+  syncUrl();
+}
+
+// Only `<br>` appears anywhere in the source descriptions (checked against the
+// full file), but they arrive as literal HTML in someone else's dataset, so
+// escape first and only let that one tag back through rather than trusting it.
+const escapeHtml = (s) =>
+  String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const historicDesc = (s) => escapeHtml(s).replace(/&lt;br\s*\/?&gt;/gi, '<br>');
+
+function showHistoricPopup(e) {
+  const f = e.features?.[0];
+  if (!f) return;
+  const title = escapeHtml(f.properties.title || 'Route');
+  const desc = f.properties.description ? `<p>${historicDesc(f.properties.description)}</p>` : '';
+  new maplibregl.Popup({ className: 'hist-popup', maxWidth: '272px' })
+    .setLngLat(e.lngLat)
+    .setHTML(`<h4>${title}</h4>${desc}<div class="hist-popup-tag">1927 state highway map</div>`)
+    .addTo(map);
 }
 
 // --------------------------------------------------------------------------
@@ -2984,6 +3106,8 @@ function urlHash() {
   // Only when it is true: `play=0` in a link is noise, and its absence already
   // says paused.
   if (playing) q.set('play', '1');
+  // Same reasoning as `play`: absence already means off.
+  if (hist1927On) q.set('hist', '1');
   q.set('c', `${c.lng.toFixed(5)},${c.lat.toFixed(5)}`); // 5 dp is about a metre
   q.set('z', map.getZoom().toFixed(2));
   // URLSearchParams percent-encodes the comma in the centre pair. It is a legal
@@ -3017,6 +3141,7 @@ function readUrl() {
     travelled: mi === null ? null : mi * MI, // clamped against `total` on apply
     northbound: dir === 'n' ? true : dir === 's' ? false : null,
     playing: q.get('play') === '1',
+    hist1927: q.get('hist') === '1',
     speedAuto: speed === 'auto' ? true : manual ? false : null,
     speedNotch: manual ? Number(speed) : null,
     center: onEarth ? c : null,
@@ -3088,8 +3213,14 @@ function restoreRun(st = null) {
 
 /* Apply a fragment to a map that is already up. A different road has to go the
  * long way round - the geometry, the signs, the minimap and the palette all
- * change - and loadNetwork finishes by calling restoreRun itself. */
+ * change - and loadNetwork finishes by calling restoreRun itself.
+ *
+ * The 1927 overlay is set here rather than inside restoreRun: restoreRun also
+ * runs on a plain road switch (button click, `restore` null), and the overlay
+ * is independent of which road is selected - it should survive that switch,
+ * not follow whatever a stale `st.hist1927` says. */
 function applyUrl(st) {
+  setHist1927(!!st.hist1927);
   if (st.net && st.net !== net.key) {
     loadNetwork(st.net, st).catch(reportFailure);
     return;
@@ -3171,6 +3302,22 @@ async function optional(url) {
   }
 }
 
+/* The source file is a Wikimedia Commons georeferencer export - the
+ * FeatureCollection is one level down, under `data`, next to metadata this map
+ * has no use for. "(Planned)" routes are the ones the 1927 map shows as
+ * proposed rather than built; drawing them alongside the real ones would claim
+ * a road existed on the ground when it did not, so they are dropped here
+ * rather than merely hidden. */
+async function optionalHistoric1927(url) {
+  const raw = await optional(url);
+  const feats = raw?.data?.features;
+  if (!Array.isArray(feats)) return null;
+  return {
+    type: 'FeatureCollection',
+    features: feats.filter((f) => !/\(planned\)/i.test(f.properties?.title || '')),
+  };
+}
+
 initScrubber();
 setSpeedUI();
 paintPlay();
@@ -3200,17 +3347,21 @@ Promise.all([
   optional('municipalities.geojson'),
   optional('municipality-labels.geojson'),
   optional('exits-points.json'),
+  optionalHistoric1927(HIST_1927.file),
   probeTerrain(),
 ])
-  .then(([, munis, muniLabels, exits]) => {
+  .then(([, munis, muniLabels, exits, hist1927]) => {
     if (munis) addMunicipalities(munis, muniLabels);
     else console.info('municipalities.geojson not found — boundary layer off');
     allExits = exits;
     if (!exits) console.info('exits-points.json not found — signs off');
+    if (hist1927) addHistoricHighways(hist1927);
+    else console.info(`${HIST_1927.file} not found — 1927 highway overlay off`);
     setupTerrain();
     // The fragment picks the road as well as the place on it, so it has to be
     // read before the first load rather than applied on top of one.
     const start = readUrl();
+    if (hist1927) setHist1927(!!start?.hist1927);
     return loadNetwork(start?.net || 'NJTP', start);
   })
   .catch(reportFailure);
@@ -3245,6 +3396,7 @@ window.__state = () => ({
   speedNotch,
   speedAuto,
   terrainOn,
+  hist1927: hist1927On,
   minimap: !!mini && miniOn(),
   zoom: map.getZoom(),
   pitch: map.getPitch(),

@@ -35,6 +35,10 @@
     --sign-green: #006747;
     --sign-blue: #003865;
 
+    /* The 1927 state highway overlay. Kept out of the green/gold road palette
+       and the blue of the controls on purpose - see DESIGN.md section 1. */
+    --hist: #d98c46;
+
     /* Controls are not map data, and were painted in the road's own gold, which
        put the brightest colour on the map on the buttons rather than on the
        road. This blue belongs to nothing on the ground: there is no blue in a
@@ -464,6 +468,34 @@
   @media (pointer: coarse) {
     .ctl-group button { width: 36px; height: 36px; }
     .ctl-group button svg { width: 20px; height: 20px; }
+  }
+
+  /* ------------------------------------------------------ 1927 highways -- */
+  /* MapLibre's own popup chrome (white box, drop-shadow triangle) belongs to
+     no other surface in this app - every other panel is the same blurred dark
+     glass, so this one is remade to match rather than left as the odd one
+     out. The tip is dropped rather than recoloured: matching its border-color
+     to --panel across all four anchor sides is four rules for a detail nobody
+     would miss if it were gone. */
+  .maplibregl-popup.hist-popup .maplibregl-popup-tip { display: none; }
+  .maplibregl-popup.hist-popup .maplibregl-popup-content {
+    padding: 10px 30px 11px 12px; border-radius: 8px;
+    background: var(--panel); backdrop-filter: blur(6px);
+    border: 1px solid var(--edge); box-shadow: 0 6px 20px rgba(0, 0, 0, .45);
+    font-family: var(--ui);
+  }
+  .hist-popup h4 { margin: 0; font: 700 13px/1.3 var(--ui); color: var(--ink); }
+  .hist-popup p { margin: 5px 0 0; font: 400 11.5px/1.42 var(--ui); color: var(--ink-dim); }
+  .hist-popup .hist-popup-tag {
+    margin-top: 7px; padding-top: 5px; border-top: 1px solid var(--edge);
+    font: 700 9px/1 var(--ui); letter-spacing: .1em; text-transform: uppercase;
+    color: var(--hist);
+  }
+  .maplibregl-popup.hist-popup .maplibregl-popup-close-button {
+    color: var(--ink-dim); font: 400 18px/1 var(--ui); padding: 4px 7px 0 0;
+  }
+  .maplibregl-popup.hist-popup .maplibregl-popup-close-button:hover {
+    background: none; color: var(--ink);
   }
 
   /* ----------------------------------------------------------------- about -- */
