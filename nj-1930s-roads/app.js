@@ -297,6 +297,17 @@ const reportFailure = (e) => {
   warn(e.message);
 };
 
+/* Umami loads as a deferred <script> in the document head, ahead of this
+ * module - but an ad blocker (or a slow fetch) can leave window.umami
+ * undefined for good, so every call is guarded rather than assumed. */
+const trackEvent = (name, data) => {
+  try {
+    window.umami?.track(name, data);
+  } catch {
+    /* analytics is best-effort */
+  }
+};
+
 // --------------------------------------------------------------------------
 // Icons
 //
@@ -1718,7 +1729,10 @@ class ButtonGroup {
  * does, are both things you might want to look at. */
 const ctlGroup = new ButtonGroup([
   {
-    onClick: () => toggleHeadingUp(),
+    onClick: () => {
+      trackEvent('toggle heading up', { net: net.key, on: !headingUp });
+      toggleHeadingUp();
+    },
     state: () => ({
       icon: ICON.heading,
       on: headingUp,
@@ -1728,7 +1742,10 @@ const ctlGroup = new ButtonGroup([
     }),
   },
   {
-    onClick: () => setHist1927(!hist1927On),
+    onClick: () => {
+      trackEvent('toggle 1927 highways', { net: net.key, on: !hist1927On });
+      setHist1927(!hist1927On);
+    },
     state: () => ({
       icon: ICON.layers,
       on: hist1927On,
@@ -1789,7 +1806,10 @@ function buildViewSwitch() {
     // Tapping the view you are already in re-centres it, which is the way back
     // after you have dragged the map somewhere and stopped following. So this
     // does not test whether the mode changed.
-    b.addEventListener('click', () => setView(b.dataset.mode));
+    b.addEventListener('click', () => {
+      trackEvent('change view', { net: net.key, mode: b.dataset.mode });
+      setView(b.dataset.mode);
+    });
   }
 }
 
@@ -1830,7 +1850,9 @@ function buildRoadSwitch() {
     b.textContent = NETWORKS[key].short;
     b.title = NETWORKS[key].label;
     b.addEventListener('click', () => {
-      if (net.key !== key) loadNetwork(key).catch(reportFailure);
+      if (net.key === key) return;
+      trackEvent('switch road', { from: net.key, to: key });
+      loadNetwork(key).catch(reportFailure);
     });
     host.appendChild(b);
   }
@@ -2199,6 +2221,7 @@ function showHistoricPopup(e) {
   const f = e.features?.[0];
   if (!f) return;
   const title = escapeHtml(f.properties.title || 'Route');
+  trackEvent('1927 highway popup', { route: title });
   const desc = f.properties.description ? `<p>${historicDesc(f.properties.description)}</p>` : '';
   new maplibregl.Popup({ className: 'hist-popup', maxWidth: '272px' })
     .setLngLat(e.lngLat)
@@ -2788,12 +2811,17 @@ function initScrubber() {
   el.addEventListener('pointermove', (e) => {
     if (scrubbing) scrubTo(at(e));
   });
-  for (const ev of ['pointerup', 'pointercancel']) {
-    el.addEventListener(ev, () => {
-      scrubbing = false;
-      setExitReadout(); // the exits are shown for the drag; retire them with it
-    });
-  }
+  el.addEventListener('pointerup', () => {
+    if (scrubbing && total) {
+      trackEvent('scrub', { net: net.key, percent: Math.round((travelled / total) * 100) });
+    }
+    scrubbing = false;
+    setExitReadout(); // the exits are shown for the drag; retire them with it
+  });
+  el.addEventListener('pointercancel', () => {
+    scrubbing = false;
+    setExitReadout();
+  });
   el.addEventListener('keydown', (e) => {
     // Up is north, whichever way we happen to be driving - the same convention
     // as the track itself.
@@ -2864,8 +2892,14 @@ function paintPlay() {
   $('btnPlay').setAttribute('aria-label', playing ? 'Pause' : 'Play');
 }
 
-$('btnPlay').onclick = () => setPlaying(!playing);
-$('btnRestart').onclick = () => backToStart();
+$('btnPlay').onclick = () => {
+  trackEvent(playing ? 'pause' : 'play', { net: net.key });
+  setPlaying(!playing);
+};
+$('btnRestart').onclick = () => {
+  trackEvent('restart', { net: net.key });
+  backToStart();
+};
 
 /* Which way we are driving, next to play and reset rather than off in the map
  * controls. It belongs with them: it is a property of the run, like where the
@@ -2887,6 +2921,7 @@ function syncDirection() {
 }
 $('btnFlip').onclick = () => {
   northbound = !northbound;
+  trackEvent('flip direction', { net: net.key, direction: northbound ? 'north' : 'south' });
   syncDirection();
   backToStart();
 };
@@ -2935,6 +2970,7 @@ function setSpeedUI() {
 
 $('btnSpeed').onclick = () => {
   const next = SPEED_STEPS[(speedIdx() + 1) % SPEED_STEPS.length];
+  trackEvent('change speed', { net: net.key, speed: next.label });
   if (next.auto) {
     // Not a sixth speed: hand the choice back to the zoom and let it pick.
     speedAuto = true;
@@ -2957,11 +2993,15 @@ function setAbout(on) {
   if (on) $('about-close').focus();
   else $('title-card').focus();
 }
-$('title-card').addEventListener('click', () => setAbout(true));
+function openAbout() {
+  trackEvent('open about', { net: net.key });
+  setAbout(true);
+}
+$('title-card').addEventListener('click', openAbout);
 $('title-card').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' || e.key === ' ') {
     e.preventDefault();
-    setAbout(true);
+    openAbout();
   }
 });
 $('about-close').addEventListener('click', () => setAbout(false));
@@ -3001,7 +3041,10 @@ function readAboutSeen() {
 
 (function maybeAutoShowAbout() {
   const count = readAboutSeen()?.count ?? 0;
-  if (count < ABOUT_AUTO_SHOW_VISITS) setAbout(true);
+  if (count < ABOUT_AUTO_SHOW_VISITS) {
+    trackEvent('auto-show about', { visit: count + 1 });
+    setAbout(true);
+  }
   try {
     localStorage.setItem(ABOUT_SEEN_KEY, JSON.stringify({ count: count + 1, ts: Date.now() }));
   } catch {
