@@ -6,6 +6,7 @@
      pinch-zooms the map itself, which is touch-driven rather than gesture-driven. -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>NJ toll roads over 1930s aerials</title>
+<script defer src="https://cloud.umami.is/script.js" data-website-id="beb3212e-74fd-4d93-aeee-f27a860f0f19"></script>
 <link rel="stylesheet" href="vendor/maplibre-gl.css">
 <style>
   /* Overpass is drawn from the FHWA Series letterforms the real signs use, and
@@ -144,9 +145,6 @@
     width: 13px; height: 13px; margin-left: 5px; vertical-align: -1px;
     border: 1px solid var(--ink-dim); border-radius: 50%;
     font: 700 9px/1 var(--ui); color: var(--ink-dim);
-  }
-  #title-card p {
-    margin: 4px 0 0; font: 400 11px/1.35 var(--ui); color: var(--ink-dim);
   }
   #title-card .short { display: none; }
 
@@ -510,7 +508,7 @@
   #about.on { display: flex; }
   #about-panel {
     display: flex; flex-direction: column; box-sizing: border-box;
-    width: min(560px, 100%); max-height: min(80vh, 760px);
+    width: min(640px, 100%); max-height: min(82vh, 800px);
     border-radius: 14px; border: 1px solid var(--edge);
     background: rgba(18, 21, 20, .97);
     box-shadow: 0 24px 70px rgba(0, 0, 0, .6);
@@ -519,7 +517,7 @@
     flex: 0 0 auto; display: flex; align-items: center; gap: 12px;
     padding: 14px 16px; border-bottom: 1px solid var(--edge);
   }
-  #about-head h2 { margin: 0; flex: 1 1 auto; font: 700 15px/1.3 var(--ui); color: var(--ink); }
+  #about-head h2 { margin: 0; flex: 1 1 auto; font: 700 23px/1.3 var(--ui); color: var(--ink); }
   #about-close {
     flex: 0 0 auto; width: 30px; height: 30px; border: 0; border-radius: 50%;
     background: rgba(255, 255, 255, .1); color: var(--ink); cursor: pointer;
@@ -530,15 +528,20 @@
     flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
     padding: 4px 16px 18px; overscroll-behavior: contain;
     -webkit-user-select: text; user-select: text;
+    font-family: var(--ui);
   }
+  /* Styled as a little highway guide sign rather than as a small-caps label -
+     the same green plate, white rule and white letterforms as the exit tabs
+     and the next-interchange card out on the map. */
   #about-body h3 {
-    margin: 16px 0 6px; font: 700 9.5px/1 var(--ui);
-    letter-spacing: .13em; text-transform: uppercase; color: var(--accent);
+    display: inline-block; margin: 18px 0 8px; padding: 4px 12px 5px;
+    border-radius: 4px; border: 2px solid #fff;
+    background: var(--sign-green); box-shadow: 0 3px 10px rgba(0, 0, 0, .4);
+    font: 700 15px/1.25 var(--ui); letter-spacing: .02em; color: #fff;
   }
-  #about-body p { margin: 0 0 8px; font-size: 12.5px; line-height: 1.55; color: var(--ink); }
-  #about-body ol, #about-body ul { margin: 0 0 8px; padding-left: 18px; }
-  #about-body li { font-size: 12.5px; line-height: 1.55; margin-bottom: 5px; color: var(--ink); }
-  #about-body .dim { color: var(--ink-dim); }
+  #about-body p { margin: 0 0 10px; font-size: 19px; line-height: 1.5; color: var(--ink); font-family: var(--ui); }
+  #about-body ol, #about-body ul { margin: 0 0 10px; padding-left: 22px; }
+  #about-body li { font-size: 19px; line-height: 1.5; margin-bottom: 6px; color: var(--ink); font-family: var(--ui); }
   #about-body a { color: var(--accent); }
 
   #warn {
@@ -592,7 +595,7 @@
        a quarter of the width. */
     #title-card { padding: 6px 8px 7px; }
     #title-card h1 { font-size: 11.5px; }
-    #title-card p, #title-card .full { display: none; }
+    #title-card .full { display: none; }
     #title-card .short { display: inline; }
     #note { left: calc(var(--safe-l) + 80px); transform: none; text-align: left; }
     /* Both panes narrow together. The pill is measured off the buttons rather
@@ -638,10 +641,8 @@
   <div id="topleft">
     <div id="title-card" role="button" tabindex="0" aria-haspopup="dialog"
          title="What is this map?">
-      <h1><span class="full">Toll roads over 1930s New&nbsp;Jersey</span><span
-          class="short">Toll roads over 1930s NJ</span><span id="title-more" aria-hidden="true">i</span></h1>
-      <p>The Turnpike and the Parkway, drawn on aerial photography taken before
-         either of them was built.</p>
+      <h1><span class="full">The Turnpike and Parkway drawn over 1930s aerial&nbsp;imagery</span><span
+          class="short">The Turnpike and Parkway drawn over 1930s aerial imagery</span><span id="title-more" aria-hidden="true">i</span></h1>
     </div>
     <div id="minimap" aria-hidden="true"><canvas id="mini-canvas"></canvas></div>
   </div>
@@ -729,20 +730,18 @@
   <div id="about" role="dialog" aria-modal="true" aria-labelledby="about-title">
     <div id="about-panel">
       <div id="about-head">
-        <h2 id="about-title">Toll roads over 1930s New Jersey</h2>
+        <h2 id="about-title">The New Jersey Turnpike and the Garden State Parkway over 1930s Aerial imagery</h2>
         <button id="about-close" type="button" aria-label="Close">&#10005;</button>
       </div>
       <div id="about-body">
-        <h3>What this map shows</h3>
-        <p>This map draws two New Jersey toll roads on aerial photographs from the
-           1930s. The photographs show the ground before the roads existed. Press
-           play, and a road unrolls across the state from one end to the other.</p>
-
-        <h3>The photographs</h3>
-        <p>New Jersey photographed the whole state from the air in the 1930s. The
-           photographs are black and white. They show farms, marsh, rail lines and
-           small towns. The New Jersey Department of Environmental Protection keeps
-           this photography today.</p>
+        <p>The Garden State has long been very urban, and especially so since the
+           Turnpike and Parkway were built in the 1950s. This interactive map lets
+           you drive or fly over the routes of each major road over aerial imagery
+           from the 1930s. You can also toggle on state highway routes from 1927
+           that drove the creation of the major routes. This is part pastiche,
+           part historical fiction, but it's an interesting look at how the roads
+           were built to capture latent demand and where they bowled over what
+           existed to create something new that we live with today.</p>
 
         <h3>The roads</h3>
         <p>The New Jersey Turnpike opened in 1951. It runs 122 miles, from Pennsville
@@ -752,39 +751,23 @@
            It runs 172 miles, from Cape May to the New York state line.</p>
 
         <h3>How to use the map</h3>
-        <ol>
-          <li>Select a road with the switch at the top.</li>
-          <li>Select a view: <b>State</b> shows all of the road. <b>Follow</b> looks
-              straight down at it. <b>Drive</b> looks along it in 3D.</li>
-          <li>Press play at the bottom right.</li>
-          <li>Press the speed button to set the speed. It has five steps, and one
-              more step named AUTO. On AUTO the speed follows the zoom.</li>
-          <li>Drag the bar on the right to go to a different place on the road. North
-              is at the top.</li>
-          <li>Press the direction button to drive the other way.</li>
-          <li>Press a view button again to go back to that view.</li>
-        </ol>
-        <p class="dim">You can also zoom, turn and tilt the map at any time. Press a
-           view button again to go back to that view.</p>
-
-        <h3>What you see on the road</h3>
-        <p>The green band is the whole road. The gold line inside it is the part you
-           have driven. The green sign at the top right names the next interchange.
-           It gives the distance to it. Small green tabs mark each interchange on
-           the ground.</p>
+        <p>Select a road with the switch at the top, then choose a view:
+           <b>State</b> shows the whole road, <b>Follow</b> looks straight down at
+           it, and <b>Drive</b> looks along it in 3D. Press play at the bottom
+           right, and use the speed button to set the pace &mdash; five steps,
+           plus AUTO, which follows the zoom. Drag the bar on the right to jump to
+           a different point on the road (north is at the top), or press the
+           direction button to drive the other way. You can also zoom, turn and
+           tilt the map at any time.</p>
 
         <h3>Where the data comes from</h3>
         <ul>
           <li>Photography: New Jersey DEP and NJGIS.</li>
           <li>Road lines, interchanges and toll barriers: OpenStreetMap.</li>
+          <li>1927 state highway routes: Wikimedia Commons.</li>
           <li>Town boundaries: NJGIS.</li>
           <li>Ground heights for the Drive view: Mapterhorn.</li>
         </ul>
-
-        <h3>How it works</h3>
-        <p class="dim">The photography is one large file. Your browser asks the
-           server for small parts of that file, and only for the parts on screen.
-           MapLibre GL draws the map. Everything runs on your own machine.</p>
       </div>
     </div>
   </div>

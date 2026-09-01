@@ -2974,6 +2974,41 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && $('about').classList.contains('on')) setAbout(false);
 });
 
+/* Open the long explanation on its own for a visitor's first two page loads,
+ * then leave it closed - the card and its (i) badge are still there for
+ * anyone who wants it again. localStorage has no built-in expiry, so the
+ * record carries its own: a visitor who has not been back in a week is
+ * evicted and greeted as new rather than remembered forever. The key is
+ * namespaced because this page's origin is indraneel.org, shared with
+ * everything else living there. */
+const ABOUT_SEEN_KEY = 'nj1930sroads:aboutSeen';
+const ABOUT_SEEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const ABOUT_AUTO_SHOW_VISITS = 2;
+
+function readAboutSeen() {
+  try {
+    const rec = JSON.parse(localStorage.getItem(ABOUT_SEEN_KEY));
+    if (!rec || typeof rec.count !== 'number' || typeof rec.ts !== 'number') return null;
+    if (Date.now() - rec.ts > ABOUT_SEEN_TTL_MS) {
+      localStorage.removeItem(ABOUT_SEEN_KEY); // stale - evict rather than trust it
+      return null;
+    }
+    return rec;
+  } catch {
+    return null; // storage disabled, quota, or corrupt - fail open as a first visit
+  }
+}
+
+(function maybeAutoShowAbout() {
+  const count = readAboutSeen()?.count ?? 0;
+  if (count < ABOUT_AUTO_SHOW_VISITS) setAbout(true);
+  try {
+    localStorage.setItem(ABOUT_SEEN_KEY, JSON.stringify({ count: count + 1, ts: Date.now() }));
+  } catch {
+    /* private browsing, quota, etc. - it just won't remember next time */
+  }
+})();
+
 /* A backgrounded tab stops getting animation frames, so playback stalls where
  * it stood and resumes mid-stride when you come back - which looks like a
  * glitch even though the distance is right. Stopping deliberately says what
