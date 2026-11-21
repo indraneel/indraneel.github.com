@@ -286,7 +286,9 @@ html:not([data-map-stage="mini"]) #tt-dock { left: calc(var(--tt-map-w) + 10px);
   #tt-minimap-map { max-height: 24vh; }
   #tt-panel { top: auto; bottom: 10px; left: 10px; right: 10px; max-height: 70%; }
   html:not([data-map-stage="mini"]) #tt-hud { left: 0; }
-  html:not([data-map-stage="mini"]) #tt-station-inset { left: 10px; width: calc(100vw - 20px); }
+  /* Small, and drags and taps pass through it to the side view; only the × catches them. */
+  #tt-station-inset, html:not([data-map-stage="mini"]) #tt-station-inset { left: 10px; width: min(250px, calc(100vw - 20px)); padding: 3px 6px 2px; font-size: 12px; line-height: 1.2; pointer-events: none; }
+  #tt-station-inset button { pointer-events: auto; }
   html:not([data-map-stage="mini"]) #tt-dock { left: 10px; bottom: calc(var(--tt-map-h) + 10px); }
 }
 
@@ -556,9 +558,8 @@ html:not([data-map-stage="mini"]) #tt-viewport { left: var(--tt-map-w); }
     state: {
       theme: null,       // the look every layer is drawn in
       machines: {},      // live machine positions, written by feed.js
-      dragMode: false,   // true while "Drag machines" is on (src/drag.js)
-      manual: {},        // { machineId: station } for machines placed by hand
-      holding: null      // id of the machine being dragged right now
+      manual: {}         // { machineId: station } for machines placed by hand
+      // dragMode and holding are read from the drag machine (src/drag.js defines them).
     },
     svg: null,
     scale: null,
@@ -587,6 +588,71 @@ html:not([data-map-stage="mini"]) #tt-viewport { left: var(--tt-map-w); }
   // A theme: { label, page, svg, <layer id>: { ...style keys, group } }. See themes/sketch.js.
   TT.theme = function (name, def) { TT.themes[name] = def; };
   TT.layer = function (def) { TT.layers[def.id] = def; };
+
+  /* ---------- state machines ---------- */
+
+  /*
+   * Anything with modes (a drag, Fit, a popover) keeps them in one of these, not in loose flags that can disagree.
+   * Borrowed from TLA+: a machine is a spec you can check, not just a variable.
+   *
+   *   const m = TT.fsm('fit', { off: ['easing'], easing: ['settling', 'off'], ... }, 'off', {
+   *     'easing has a frame': function (m) { return !m.is('easing') || !!m.data.raf; }, ...
+   *   });
+   *   m.state, m.data (what this state carries), m.is('a', 'b'), m.go('easing', data), m.broken()
+   *
+   * - edges are the next-state relation. go() moves only along one; any other move is a bug: refused, logged and
+   *   counted in m.refused.
+   * - invariants are named predicates that must hold in every state the page can reach, between events (one event
+   *   handler is one step, so they are not checked inside go(), where the handler is half done). They may look at
+   *   the page and at other machines. m.broken() names the ones that fail now.
+   * - Made here, at load: every state can be reached from the first, and the first can be reached from every state.
+   *   A state with no way back is a trap, where the page would stick (as a drag did when a context menu ate its release).
+   * tools/facts.js (?verify) checks all of it, and walks the real page at random the way TLC simulates a spec:
+   * every invariant after every step, and a trace you can replay when one breaks.
+   * TT.fsms lists every machine, so the page's modes can be read in one place.
+   */
+  TT.fsms = {};
+  TT.fsm = function (name, edges, initial, invariants) {
+    const fail = function (why) { throw new Error('[TT] ' + name + ': ' + why); };
+    Object.keys(edges).forEach(function (from) {
+      edges[from].forEach(function (to) { if (!(to in edges)) fail('edge to unknown state ' + to); });
+    });
+    // Reachable from `from` along the edges (reversed: which states reach `from`).
+    const reach = function (from, back) {
+      const seen = [from];
+      for (let i = 0; i < seen.length; i++) {
+        Object.keys(edges).forEach(function (s) {
+          const linked = back ? edges[s].indexOf(seen[i]) >= 0 : edges[seen[i]].indexOf(s) >= 0;
+          if (linked && seen.indexOf(s) < 0) seen.push(s);
+        });
+      }
+      return seen;
+    };
+    const fwd = reach(initial, false), back = reach(initial, true);
+    Object.keys(edges).forEach(function (s) {
+      if (fwd.indexOf(s) < 0) fail('state ' + s + ' cannot be reached from ' + initial);
+      if (back.indexOf(s) < 0) fail('state ' + s + ' is a trap: no way back to ' + initial);
+    });
+    const m = { name: name, edges: edges, initial: initial, invariants: invariants || {}, state: initial, data: {}, refused: 0 };
+    m.is = function () { return Array.prototype.indexOf.call(arguments, m.state) >= 0; };
+    m.go = function (to, data) {
+      if (to !== m.state && edges[m.state].indexOf(to) < 0) {
+        m.refused++;
+        console.error('[TT] ' + name + ': no way from ' + m.state + ' to ' + to);
+        return false;
+      }
+      m.state = to;
+      m.data = data || {};
+      return true;
+    };
+    m.broken = function () { return Object.keys(m.invariants).filter(function (k) { return !m.invariants[k](m); }); };
+    TT.fsms[name] = m;
+    return m;
+  };
+
+  // A mouse moving with no button down has been let go, even if its pointerup never came: on a Mac a context menu
+  // (right click or control-click) swallows it. Without this a drag stuck on and followed the bare mouse.
+  TT.released = function (e) { return e.pointerType === 'mouse' && e.buttons === 0; };
 
   /* ---------- svg helpers ---------- */
 
@@ -25091,13 +25157,21 @@ TT.layer({
     // move shifts the view by how far the pointer went since the last one, from wherever the view is now.
     // Fit rewrites the scroll position as it zooms, to keep the dot on its station; a drag that held its
     // starting offset, as the browser's own touch scrolling does, kept pulling the view back, and it jittered.
-    let drag = null, want = 0, fling = 0;
+    //   idle --press--> pan --let go still--> idle
+    //                   pan --let go moving--> fling --slows to a stop, reaches an end, wheel or any touch--> idle
+    const ptr = TT.fsm('side-view pointer', { idle: ['pan'], pan: ['idle', 'fling'], fling: ['idle'] }, 'idle', {
+      'pan has its pointer': function (m) { return !m.is('pan') || m.data.id != null; },
+      'fling has its frame': function (m) { return !m.is('fling') || !!m.data.raf; },
+      'dragging look only while panning': function (m) { return el.classList.contains('is-dragging') === m.is('pan'); },
+      'what is on screen is a number': function () { const r = vp.range(); return isFinite(r.from) && isFinite(r.to) && isFinite(r.dot); }
+    });
+    let want = 0;
     const move = function (d) {
       if (Math.abs(el.scrollLeft - want) > 1) want = el.scrollLeft;   // something else moved it: go on from there
       want += d;                                                       // (kept unrounded so slow drags add up)
       el.scrollLeft = want;
     };
-    const stopFling = function () { cancelAnimationFrame(fling); fling = 0; };
+    const stopFling = function () { if (ptr.is('fling')) { cancelAnimationFrame(ptr.data.raf); ptr.go('idle'); } };
     // A flick carries on and slows down, like native scrolling, until it stops or reaches an end.
     const flick = function (v) {   // px per ms
       let last = performance.now();
@@ -25106,36 +25180,43 @@ TT.layer({
         move(v * dt);
         v *= Math.pow(0.997, dt);
         const open = v > 0 ? el.scrollLeft < vp.maxLeft() : el.scrollLeft > vp.minLeft();
-        fling = Math.abs(v) > 0.02 && open ? requestAnimationFrame(step) : 0;
+        if (Math.abs(v) > 0.02 && open) ptr.data.raf = requestAnimationFrame(step); else ptr.go('idle');
       };
-      fling = requestAnimationFrame(step);
+      ptr.go('fling', { raf: requestAnimationFrame(step) });   // straight from pan: idle -> fling is no edge
     };
-    document.addEventListener('pointerdown', stopFling, true);   // a touch anywhere, the map included, stops a flick
+    // A touch anywhere, the map included, stops a flick. A press from the pointer that is panning means its release
+    // was lost (a context menu): end that pan first, wherever the new press lands.
+    document.addEventListener('pointerdown', function (e) {
+      stopFling();
+      if (ptr.is('pan') && ptr.data.id === e.pointerId) end(e);
+    }, true);
 
     el.addEventListener('pointerdown', function (e) {
-      if (drag || e.button > 0) return;
+      if (!ptr.is('idle') || e.button > 0) return;
       if (e.defaultPrevented) return;                             // a machine being dragged (src/drag.js)
-      drag = { x: e.clientX, t: e.timeStamp, v: 0, id: e.pointerId };
+      ptr.go('pan', { x: e.clientX, t: e.timeStamp, v: 0, id: e.pointerId });
       want = el.scrollLeft;
       try { el.setPointerCapture(e.pointerId); } catch (err) { /* synthetic events in checks have no live pointer */ }
       el.classList.add('is-dragging');
     });
+    const end = function (e) {
+      if (!ptr.is('pan') || e.pointerId !== ptr.data.id) return;
+      const pan = ptr.data;
+      const v = e.type === 'pointerup' && e.timeStamp - pan.t < 80 ? pan.v : 0;   // holding still before letting go: no flick
+      el.classList.remove('is-dragging');
+      if (Math.abs(v) > 0.1) flick(v); else ptr.go('idle');
+    };
     el.addEventListener('pointermove', function (e) {
-      if (!drag || e.pointerId !== drag.id) return;
-      const dx = e.clientX - drag.x, dt = Math.max(1, e.timeStamp - drag.t);
-      drag.x = e.clientX; drag.t = e.timeStamp;
-      drag.v = 0.8 * (-dx / dt) + 0.2 * drag.v;
+      if (!ptr.is('pan') || e.pointerId !== ptr.data.id) return;
+      if (TT.released(e)) { end(e); return; }
+      const pan = ptr.data, dx = e.clientX - pan.x, dt = Math.max(1, e.timeStamp - pan.t);
+      pan.x = e.clientX; pan.t = e.timeStamp;
+      pan.v = 0.8 * (-dx / dt) + 0.2 * pan.v;
       move(-dx);
     });
-    const end = function (e) {
-      if (!drag || e.pointerId !== drag.id) return;
-      const v = e.type === 'pointerup' && e.timeStamp - drag.t < 80 ? drag.v : 0;   // holding still before letting go: no flick
-      drag = null;
-      el.classList.remove('is-dragging');
-      if (Math.abs(v) > 0.1) flick(v);
-    };
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', end);
+    el.addEventListener('lostpointercapture', end);
 
     // The route runs sideways, so a vertical wheel or trackpad swipe moves along it.
     el.addEventListener('wheel', function (e) {
@@ -25164,10 +25245,10 @@ TT.layer({
     el.addEventListener('scroll', function () {
       const min = vp.minLeft(), max = vp.maxLeft();
       if (el.scrollLeft > max + 1 || el.scrollLeft < min - 1) {
-        fit.adjusting = true; el.scrollLeft = Math.min(max, Math.max(min, el.scrollLeft)); fit.adjusting = false;
+        adjusting = true; el.scrollLeft = Math.min(max, Math.max(min, el.scrollLeft)); adjusting = false;
       }
     }, { passive: true });
-    el.addEventListener('scroll', function () { if (fit.on && !fit.adjusting) vp.fit(); }, { passive: true });
+    el.addEventListener('scroll', function () { if (!adjusting) vp.fit(); }, { passive: true });
     // The free space changes when the window, the map stage or the drag bar changes.
     window.addEventListener('resize', function () { vp.fit(); });
     document.addEventListener('tt:mapstage', function () { setTimeout(vp.fit, 50); });
@@ -25195,12 +25276,20 @@ TT.layer({
   };
 
   /* The stretch of route on screen: { from, to, centre, dot } in stations (centre is the middle of the screen). */
+  // With no size (a page laid out at zero, as a hidden pane can be) nothing is on screen: keep the last stretch.
+  // NaN here once hung the large map in an endless loop and left Fit easing toward NaN for ever.
+  let lastRange = null;
   vp.range = function () {
     const k = vp.pxPerUnit();
+    if (!(k > 0 && vp.el.clientWidth > 0)) {
+      const s = TT.config.extent.stationMin;
+      return Object.assign({}, lastRange || { from: s, to: s, centre: s, dot: s });
+    }
     const from = TT.scale.station(vp.el.scrollLeft / k);
     const to = TT.scale.station((vp.el.scrollLeft + vp.el.clientWidth) / k);
     const centre = (from + to) / 2;
-    return { from: from, to: to, centre: centre, dot: centre };
+    lastRange = { from: from, to: to, centre: centre, dot: centre };
+    return Object.assign({}, lastRange);
   };
 
   /* Put the dot (the middle of the screen) on a station. */
@@ -25227,7 +25316,20 @@ TT.layer({
    * text keeps its usual size throughout; once things are still, the scene is redrawn at that zoom so it
    * is sharp and line widths go back to their usual size. Off, the view returns to config.view.
    */
-  const fit = { on: false, base: null, z: null, y: null, raf: 0, settle: null, adjusting: false };
+  //   off --on--> easing --reached the target--> settling --400 ms still--> still (redrawn sharp at the new zoom)
+  //   settling or still --scroll, resize, map stage--> easing;  any --off--> off (back to config.view)
+  // easing carries its frame, settling its timer, so turning Fit off can always cancel what is pending.
+  const fit = TT.fsm('fit', { off: ['easing'], easing: ['settling', 'off'], settling: ['easing', 'still', 'off'], still: ['easing', 'off'] }, 'off', {
+    'easing has its frame': function (m) { return !m.is('easing') || !!m.data.raf; },
+    'zoom and scroll are numbers': function () { return isFinite(ease.z) && isFinite(ease.y); },
+    'settling has its timer': function (m) { return !m.is('settling') || !!m.data.timer; },
+    'off shows config.view, unscaled': function (m) {
+      return !m.is('off') || fitBase == null || (Math.abs(TT.config.view.top - fitBase) < 1e-6 && !TT.svg.style.transform);
+    }
+  });
+  const ease = { z: 1, y: 0 };   // the zoom and vertical scroll on screen while Fit eases
+  let fitBase = null;            // config.view.top before Fit, put back when it goes off
+  let adjusting = false;         // true while this file moves the scroll itself, so the move does not restart Fit
   const FIT = { belowShare: 0.14, minAboveFt: 400, rampSlope: 0.15, sampleFt: 50, gapPx: 10 };
 
   function contentTop(from, to) {
@@ -25330,12 +25432,12 @@ TT.layer({
   // Show the scene at zoom z, scrolled down y pixels, keeping the dot on the same station.
   function show(z, y) {
     const dot = vp.range().dot, k = Math.max(1, z) / drawnZoom;
-    fit.adjusting = true;
+    adjusting = true;
     TT.svg.style.transform = 'scale(' + k.toFixed(5) + ')';
     holdText(k);
     vp.el.scrollTop = y;
     vp.goTo(dot, false);
-    fit.adjusting = false;
+    adjusting = false;
   }
 
   // Redraw so one page height is 1000 scene units again at this zoom (sizes settle), then restore the view.
@@ -25344,26 +25446,35 @@ TT.layer({
     const bottom = TT.config.view.bottom != null ? TT.config.view.bottom : ext.elevMin;
     TT.config.view.top = bottom + (ext.elevMax - ext.elevMin) / z;
     TT.render();
-    fit.adjusting = true;
+    adjusting = true;
     vp.setZoom(TT.viewZoom(TT.config));
     if (y == null) vp.showView(); else vp.el.scrollTop = y;
     vp.goTo(dot, false);
-    fit.adjusting = false;
+    adjusting = false;
   }
 
   function step() {
     const t = target();
-    fit.z += (t.z - fit.z) * 0.2;
-    fit.y += (t.y - fit.y) * 0.2;
-    const done = Math.abs(t.z - fit.z) < 0.003 && Math.abs(t.y - fit.y) < 1;
-    if (done) { fit.z = t.z; fit.y = t.y; }
-    show(fit.z, fit.y);
-    if (!done) { fit.raf = requestAnimationFrame(step); return; }
-    fit.raf = 0;
-    clearTimeout(fit.settle);
-    fit.settle = setTimeout(function () {
-      if (fit.on && !fit.raf && Math.abs(fit.z - TT.viewZoom(TT.config)) > 0.02) redrawAt(fit.z, fit.y);
-    }, 400);
+    if (!isFinite(t.z) || !isFinite(t.y)) { fit.go('settling', { timer: setTimeout(settle, 400) }); return; }   // no room to fit into
+    ease.z += (t.z - ease.z) * 0.2;
+    ease.y += (t.y - ease.y) * 0.2;
+    const done = Math.abs(t.z - ease.z) < 0.003 && Math.abs(t.y - ease.y) < 1;
+    if (done) { ease.z = t.z; ease.y = t.y; }
+    show(ease.z, ease.y);
+    if (!done) { fit.data.raf = requestAnimationFrame(step); return; }
+    fit.go('settling', { timer: setTimeout(settle, 400) });
+  }
+
+  function settle() {
+    if (!fit.is('settling')) return;
+    fit.go('still');
+    if (Math.abs(ease.z - TT.viewZoom(TT.config)) > 0.02) redrawAt(ease.z, ease.y);
+  }
+
+  // Cancel what the current Fit state has pending (its frame or its timer).
+  function stopPending() {
+    if (fit.is('easing')) cancelAnimationFrame(fit.data.raf);
+    if (fit.is('settling')) clearTimeout(fit.data.timer);
   }
 
   // Scroll so config.view.top is at the top of the page (the normal, non-fit framing).
@@ -25375,19 +25486,22 @@ TT.layer({
   vp.fitTarget = target;   // for checks (tools/facts.js) and debugging
 
   vp.fit = function () {
-    if (!fit.on || fit.raf) return;
-    fit.raf = requestAnimationFrame(step);
+    if (!fit.is('settling', 'still')) return;   // off, or already easing
+    stopPending();
+    fit.go('easing', { raf: requestAnimationFrame(step) });
   };
 
   vp.setFit = function (on) {
-    if (fit.base == null) fit.base = TT.config.view.top;
-    fit.on = on;
-    fit.z = TT.viewZoom(TT.config);
-    fit.y = vp.el.scrollTop;
-    if (on) vp.fit();
-    else {
-      cancelAnimationFrame(fit.raf); fit.raf = 0;
-      TT.config.view.top = fit.base;
+    if (on === !fit.is('off')) return;          // already so: nothing to redo
+    if (fitBase == null) fitBase = TT.config.view.top;
+    stopPending();
+    if (on) {
+      ease.z = TT.viewZoom(TT.config);
+      ease.y = vp.el.scrollTop;
+      fit.go('easing', { raf: requestAnimationFrame(step) });
+    } else {
+      fit.go('off');
+      TT.config.view.top = fitBase;
       redrawAt(TT.viewZoom(TT.config), null);
     }
   };
@@ -25416,14 +25530,55 @@ TT.layer({
  * The drag bar (#tt-dragbar, bottom of the page, above everything) does the same without hunting for
  * the machine in the scene: one lane per tube, a handle per machine, scaled to the whole route.
  * Handles are sliders: arrow keys move 50 ft, page up/down 500 ft. The side view follows the handle.
+ *
+ *   off --Drag machines on--> ready --press a machine or a handle--> holding --let go--> ready;  any --off--> off
+ * One machine is held at a time, by one pointer (holding carries its id and pointerId); a second finger cannot take
+ * it over, and turning the mode off lets go of whatever is held.
  */
 (function (TT) {
   'use strict';
   const drag = TT.drag = {};
-  let held = null;
+  const mode = drag.mode = TT.fsm('machine drag', { off: ['ready'], ready: ['holding', 'off'], holding: ['ready', 'off'] }, 'off', {
+    'off: no drag bar, no drag look': function (m) {
+      const bar = document.getElementById('tt-dragbar');
+      return document.documentElement.classList.contains('tt-drag-mode') !== m.is('off') && (!bar || bar.hidden === m.is('off'));
+    },
+    'off: nothing placed by hand': function (m) { return !m.is('off') || !Object.keys(TT.state.manual).length; },
+    'holding names a machine and a pointer': function (m) {
+      return !m.is('holding') || (m.data.pointerId != null && TT.machines().some(function (x) { return x.id === m.data.id; }));
+    },
+    // Across machines: the pointer holding a machine must not also be panning the side view under it.
+    'held pointer is not panning': function (m) {
+      const p = TT.fsms['side-view pointer'];
+      return !m.is('holding') || !p || !p.is('pan') || p.data.id !== m.data.pointerId;
+    }
+  });
+  // What src/feed.js reads, worked out from the machine so it cannot disagree with it.
+  Object.defineProperties(TT.state, {
+    dragMode: { enumerable: true, get: function () { return !mode.is('off'); } },
+    holding: { enumerable: true, get: function () { return mode.is('holding') ? mode.data.id : null; } }
+  });
+
+  // Take hold of machine id with this pointer; false if already holding one (or the mode is off).
+  function hold(id, e, extra) {
+    if (!mode.is('ready')) return false;
+    mode.go('holding', Object.assign({ id: id, pointerId: e.pointerId }, extra));
+    TT.feed.tick();
+    return true;
+  }
+  const holds = function (e) { return mode.is('holding') && e.pointerId === mode.data.pointerId; };
+  const letGo = function (e) {
+    if (!holds(e)) return;
+    const m = TT.state.machines[mode.data.id];
+    if (m) TT.state.manual[mode.data.id] = m.station;   // store the clamped position
+    mode.go('ready');
+    TT.feed.tick();
+  };
+  const capture = function (el, e) { try { el.setPointerCapture(e.pointerId); } catch (err) { /* synthetic events in checks */ } };
 
   drag.set = function (on) {
-    TT.state.dragMode = on;
+    if (on === !mode.is('off')) return;
+    mode.go(on ? 'ready' : 'off');
     if (!on) TT.state.manual = {};
     document.documentElement.classList.toggle('tt-drag-mode', on);
     document.getElementById('tt-dragbar').hidden = !on;
@@ -25482,22 +25637,18 @@ TT.layer({
       h.setAttribute('aria-valuemax', m.to);
       (bar.lanes[m.tube] || root).appendChild(h);
       bar.handles[m.id] = h;
-      let grab = null;
       h.addEventListener('pointerdown', function (e) {
-        const r = h.parentNode.getBoundingClientRect();
-        grab = { r: r };
-        h.setPointerCapture(e.pointerId);
-        TT.state.holding = m.id;
+        if (e.button > 0 || !hold(m.id, e, { track: h.parentNode.getBoundingClientRect() })) return;
+        capture(h, e);
         e.preventDefault();
       });
       h.addEventListener('pointermove', function (e) {
-        if (!grab) return;
-        const f = (e.clientX - grab.r.left) / grab.r.width;
+        if (!holds(e)) return;
+        if (TT.released(e)) { letGo(e); return; }
+        const r = mode.data.track, f = (e.clientX - r.left) / r.width;
         setStation(m, bar.from + f * (bar.to - bar.from), true);
       });
-      const up = function () { if (!grab) return; grab = null; TT.state.holding = null; TT.feed.tick(); };
-      h.addEventListener('pointerup', up);
-      h.addEventListener('pointercancel', up);
+      ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (type) { h.addEventListener(type, letGo); });
       h.addEventListener('keydown', function (e) {
         const step = { ArrowRight: 50, ArrowUp: 50, ArrowLeft: -50, ArrowDown: -50, PageUp: 500, PageDown: -500 }[e.key];
         if (!step) return;
@@ -25537,34 +25688,26 @@ TT.layer({
 
   drag.init = function () {
     const svg = TT.svg;
+    // A press anywhere from the pointer holding a machine means its release was lost (a context menu): let go first.
+    document.addEventListener('pointerdown', letGo, true);
     svg.addEventListener('pointerdown', function (e) {
-      if (!TT.state.dragMode || e.button > 0) return;
+      if (!mode.is('ready') || e.button > 0) return;
       const g = e.target.closest && e.target.closest('[data-machine]');
       const m = g && TT.machines().find(function (x) { return x.id === g.getAttribute('data-machine'); });
       if (!m || m.station == null) return;
-      held = { id: m.id, grab: m.station - stationAt(e, m) };   // keep the grab point under the pointer
-      TT.state.holding = m.id;
-      svg.setPointerCapture(e.pointerId);
+      hold(m.id, e, { grab: m.station - stationAt(e, m) });   // keep the grab point under the pointer
+      capture(svg, e);
       e.preventDefault();   // tells the viewport not to pan
-      TT.feed.tick();
     });
     // known: dragging a machine does not scroll the view at the screen edge; drop it, pan, and pick it up again.
     svg.addEventListener('pointermove', function (e) {
-      if (!held) return;
-      const m = TT.machines().find(function (x) { return x.id === held.id; });
-      TT.state.manual[held.id] = stationAt(e, m) + held.grab;   // feed.js keeps it inside the drive
+      if (!holds(e)) return;
+      if (TT.released(e)) { letGo(e); return; }
+      const m = TT.machines().find(function (x) { return x.id === mode.data.id; });
+      TT.state.manual[m.id] = stationAt(e, m) + mode.data.grab;   // feed.js keeps it inside the drive
       TT.feed.tick();
     });
-    const drop = function () {
-      if (!held) return;
-      const m = TT.state.machines[held.id];
-      if (m) TT.state.manual[held.id] = m.station;   // store the clamped position
-      held = null;
-      TT.state.holding = null;
-      TT.feed.tick();
-    };
-    svg.addEventListener('pointerup', drop);
-    svg.addEventListener('pointercancel', drop);
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (type) { svg.addEventListener(type, letGo); });
   };
 })(window.TT);
 
@@ -25592,17 +25735,34 @@ TT.layer({
     return node;
   }
 
+  // The buttons are made once per set of machines and kept. Rebuilt at every feed tick (each second), the list
+  // threw keyboard focus out of it and dropped any click whose press and release fell either side of a tick.
+  let statusIds = null;
   ui.renderStatus = function () {
     const list = $('tt-status');
-    list.textContent = '';
-    const machines = TT.machines();
-    machines.forEach(function (m) {
-      const li = make('li', {}, list);
-      const go = make('button', { type: 'button', className: 'tt-btn', textContent: m.name }, li);
-      go.addEventListener('click', function () { ui.closePopovers(); TT.viewport.goTo(m.station != null ? m.station : m.from, true); });
-      const where = make('span', {}, li);
+    const machines = TT.machines(), ids = machines.map(function (m) { return m.id; }).join();
+    if (ids !== statusIds) {
+      statusIds = ids;
+      list.textContent = '';
+      machines.forEach(function (m) {
+        const li = make('li', {}, list);
+        const go = make('button', { type: 'button', className: 'tt-btn' }, li);
+        go.addEventListener('click', function () {
+          const now = TT.state.machines[m.id];
+          ui.closePopovers();
+          TT.viewport.goTo(now && now.station != null ? now.station : m.from, true);
+        });
+        make('span', {}, li);
+      });
+    }
+    machines.forEach(function (m, i) {
+      const li = list.children[i];
+      li.querySelector('button').textContent = m.name;
+      const where = li.querySelector('span');
+      where.textContent = '';
+      where.title = '';
       if (m.station == null) {
-        where.textContent = 'Not launched · starts at ' + (m.start || 'its shaft');
+        where.textContent = 'Not launched \u00b7 starts at ' + (m.start || 'its shaft');
         if (m.note) where.title = m.note;
         return;
       }
@@ -25732,20 +25892,23 @@ TT.layer({
     $('tt-map-hide').addEventListener('click', function () { showMini(false); mapBtn.focus(); });
     $('tt-map-expand').addEventListener('click', function () { if (TT.mapview) TT.mapview.setStage('split'); });
 
-    // Popovers: Menu drops down from the header, TBM info opens up from the dock. One open at a time;
-    // Escape or a tap elsewhere closes them.
-    const pops = [[$('tt-menu-btn'), $('tt-menu')], [$('tt-tbm-btn'), $('tt-tbm-menu')]];
-    const setPop = function (pair, yes) { pair[1].hidden = !yes; pair[0].setAttribute('aria-expanded', String(yes)); };
-    ui.closePopovers = function () { pops.forEach(function (p) { setPop(p, false); }); };
-    pops.forEach(function (pair) {
-      pair[0].addEventListener('click', function (e) {
-        e.stopPropagation();
-        const open = pair[1].hidden;
-        ui.closePopovers();
-        setPop(pair, open);
-      });
+    // Popovers: Menu drops down from the header, TBM info opens up from the dock. Escape or a tap elsewhere closes them.
+    //   none <--> menu <--> tbm <--> none: one open at a time, by construction.
+    const pops = { menu: [$('tt-menu-btn'), $('tt-menu')], tbm: [$('tt-tbm-btn'), $('tt-tbm-menu')] };
+    const pop = TT.fsm('popover', { none: ['menu', 'tbm'], menu: ['none', 'tbm'], tbm: ['none', 'menu'] }, 'none', {
+      'only the open one shows': function (m) {
+        return Object.keys(pops).every(function (k) { return pops[k][1].hidden === !m.is(k) && pops[k][0].getAttribute('aria-expanded') === String(m.is(k)); });
+      }
     });
-    document.addEventListener('click', function (e) { if (!pops.some(function (p) { return p[1].contains(e.target); })) ui.closePopovers(); });
+    const showPop = function (name) {
+      pop.go(name);
+      Object.keys(pops).forEach(function (k) { pops[k][1].hidden = k !== name; pops[k][0].setAttribute('aria-expanded', String(k === name)); });
+    };
+    ui.closePopovers = function () { showPop('none'); };
+    Object.keys(pops).forEach(function (k) {
+      pops[k][0].addEventListener('click', function (e) { e.stopPropagation(); showPop(pop.is(k) ? 'none' : k); });
+    });
+    document.addEventListener('click', function (e) { if (!pop.is('none') && !pops[pop.state][1].contains(e.target)) ui.closePopovers(); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') ui.closePopovers(); });
 
     // Fit: a toggle. The height of the scene fits whatever is on screen (src/viewport.js).
@@ -25826,7 +25989,7 @@ TT.layer({
       TT.viewport.goTo(Math.min(Math.max(hit.station, ext.stationMin), ext.stationMax), false);
     };
     svg.addEventListener('pointerdown', function (e) { down = true; svg.setPointerCapture(e.pointerId); go(e); });
-    svg.addEventListener('pointermove', function (e) { if (down) go(e); });
+    svg.addEventListener('pointermove', function (e) { if (down && TT.released(e)) down = false; if (down) go(e); });
     svg.addEventListener('pointerup', function () { down = false; });
     svg.addEventListener('pointercancel', function () { down = false; });
 
@@ -25912,7 +26075,9 @@ TT.layer({
  * In the side view the station is a sliver: Fit zooms out there for PENN 2 and the Hudson Yards towers. This
  * callout draws the same levels (data/station.js) big enough to read, with the street, the avenues
  * (data/roads.js) and the dot. Heights are stretched far more than lengths, so it says it is not to scale.
- * The × hides it until the dot leaves the station and comes back.
+ * The route ends at the station, so it stays up from the station's west end to the far right; no flicker at the end.
+ * The × hides it until the dot leaves the station and comes back:
+ *   away --dot reaches the station--> shown --×--> dismissed;  shown or dismissed --dot goes west of it--> away
  *
  * Style: the station layer's block (fills, stroke, rail) and its `inset` keys:
  *   inset: { earth, street: { stroke, width }, avenue: { stroke, width, dash }, text: { font, size, fill }, dot }
@@ -25921,13 +26086,19 @@ TT.layer({
   'use strict';
   const si = TT.stationInset = {};
   const W = 360, H = 170, PAD = { left: 8, right: 8, top: 26, bottom: 18 };
-  let root = null, svg = null, dismissed = false, span = null;
+  const inset = TT.fsm('Penn inset', { away: ['shown'], shown: ['away', 'dismissed'], dismissed: ['away'] }, 'away', {
+    'seen only when shown': function (m) { return !root || root.hidden === !m.is('shown'); },
+    'away means west of the station': function (m) {
+      return !span || !TT.viewport.el || m.is('away') === (TT.viewport.range().dot < span[0]);
+    }
+  });
+  let root = null, svg = null, span = null;
 
   si.init = function () {
     root = document.getElementById('tt-station-inset');
     if (!root) return;
     svg = root.querySelector('svg');
-    root.querySelector('button').addEventListener('click', function () { dismissed = true; root.hidden = true; });
+    root.querySelector('button').addEventListener('click', function () { if (inset.go('dismissed')) root.hidden = true; });
     document.addEventListener('tt:render', si.draw);
     document.addEventListener('tt:view', si.update);
     si.draw();
@@ -25995,10 +26166,10 @@ TT.layer({
 
   si.update = function () {
     if (!root || !span || !TT.viewport.el) return;
-    const d = TT.viewport.range().dot, inside = d >= span[0] && d <= span[1];
-    if (!inside) dismissed = false;
-    root.hidden = !inside || dismissed;
-    if (inside) si.dot.setAttribute('cx', si.x(d));
+    const d = TT.viewport.range().dot;
+    if (d < span[0]) inset.go('away'); else if (inset.is('away')) inset.go('shown');
+    root.hidden = !inset.is('shown');
+    if (!inset.is('away')) si.dot.setAttribute('cx', si.x(Math.min(d, span[1])));
   };
 })(window.TT);
 
@@ -26658,7 +26829,7 @@ TT.layer({
     for (let s = from, first = true; ; s = Math.min(to, s + 50), first = false) {
       const q = routeAt(s);
       ctx[first ? 'moveTo' : 'lineTo'](q[0] + M.lx * q[2], q[1] + M.ly * q[2]);
-      if (s >= to) break;
+      if (!(s < to)) break;   // (not s >= to: a NaN end looped for ever and hung the page)
     }
   }
 
@@ -27056,7 +27227,7 @@ TT.layer({
 
   // Keep the side view's stretch on the map as the side view scrolls, unless a finger is down.
   function follow(force) {
-    if (mv.stage === 'mini' || !D || ui.gesture) return;
+    if (mv.stage === 'mini' || !D || !gesture.is('idle')) return;
     const r = sideRange();
     if (!r) return;
     if (cam.track) { aimTrack(); redraw(); return; }
@@ -27075,18 +27246,37 @@ TT.layer({
     redraw();
   }
 
+  // One pointer down is a press until it moves: along the route it scrubs (after 5 px, so a tap stays a tap); elsewhere
+  // it turns the 3D view, or moves the map (2D, 2.5D, shift, other buttons). A second pointer pinches; lifting one of
+  // two leaves the other moving the map. All lifted: idle, and a press that barely moved was a tap.
+  //   idle -> press -> scrub | turn | pan | pinch;  scrub | turn | pan -> pinch;  pinch -> pan;  any -> idle
+  const gesture = TT.fsm('map gesture', {
+    idle: ['press'], press: ['idle', 'scrub', 'turn', 'pan', 'pinch'], scrub: ['idle', 'pinch'], turn: ['idle', 'pinch'],
+    pan: ['idle', 'pinch'], pinch: ['idle', 'pan']
+  }, 'idle', {
+    'idle: no pointer down': function (m) { return m.is('idle') === (down.size === 0); },
+    'press, scrub, turn and pan: one pointer': function (m) { return !m.is('press', 'scrub', 'turn', 'pan') || down.size === 1; },
+    'pinch: two or more': function (m) { return !m.is('pinch') || down.size >= 2; },
+    'dragging look only while down': function (m) { return !ui.root || ui.root.classList.contains('is-dragging') === !m.is('idle'); }
+  });
+  const down = new Map();   // pointers on the map now: id -> last { x, y }
+
   function pointers(cv) {
-    const down = new Map();
-    let gesture = null, moved = 0;
+    let moved = 0;
+    // A press anywhere from a pointer still on the map means its release was lost (a context menu): lift it first.
+    document.addEventListener('pointerdown', function (e) { if (down.has(e.pointerId)) up(e); }, true);
     cv.addEventListener('pointerdown', function (e) {
-      cv.setPointerCapture(e.pointerId);
-      down.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      moved = down.size > 1 ? 99 : 0;
+      // Work out what is under the pointer before changing anything (the camera may not be set before the first frame).
+      setCamera();
       const r = cv.getBoundingClientRect();
-      // Starting on the route: a drag scrubs the side view (once it moves; a tap stays a tap). Elsewhere: move or turn.
-      const onRoute = down.size === 1 && !e.shiftKey && !!hitRoute(e.clientX - r.left, e.clientY - r.top, e.pointerType === 'mouse' ? 12 : 24);
-      gesture = ui.gesture = { onRoute: onRoute, scrub: false,
-        rotate: cam.mode === '3d' && !onRoute && !e.shiftKey && e.button === 0 && down.size === 1 };
+      const onRoute = !down.size && !e.shiftKey && !!hitRoute(e.clientX - r.left, e.clientY - r.top, e.pointerType === 'mouse' ? 12 : 24);
+      try { cv.setPointerCapture(e.pointerId); } catch (err) { /* synthetic events in checks */ }
+      down.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (down.size > 1) { moved = 99; gesture.go('pinch'); }
+      else {
+        moved = 0;
+        gesture.go('press', { onRoute: onRoute, turn: cam.mode === '3d' && !onRoute && !e.shiftKey && e.button === 0 });
+      }
       ui.root.classList.add('is-dragging');
     });
     cv.addEventListener('pointermove', function (e) {
@@ -27100,33 +27290,39 @@ TT.layer({
         }
         return;
       }
+      if (TT.released(e)) { up(e); return; }
       const prev = down.get(e.pointerId), dx = e.clientX - prev.x, dy = e.clientY - prev.y;
       moved += Math.abs(dx) + Math.abs(dy);
-      if (down.size === 2) {
+      if (gesture.is('press')) {
+        if (!gesture.data.onRoute) gesture.go(gesture.data.turn ? 'turn' : 'pan');
+        else if (moved >= 5) gesture.go('scrub');
+      }
+      if (gesture.is('pinch') && down.size === 2) {
         const pts = Array.from(down.values()), other = pts[0] === prev ? pts[1] : pts[0];
         const d0 = Math.hypot(prev.x - other.x, prev.y - other.y), d1 = Math.hypot(e.clientX - other.x, e.clientY - other.y);
         const mx = (e.clientX + other.x) / 2 - r.left, my = (e.clientY + other.y) / 2 - r.top;
         letGo();
         panBy(dx / 2, dy / 2);
         if (d0 > 10) zoomAt(mx, my, d1 / d0);
-      } else if (gesture && gesture.onRoute) {
-        if (moved >= 5) { gesture.scrub = true; scrub(e.clientX - r.left, e.clientY - r.top); }
-      } else if (gesture && gesture.rotate) {
+      } else if (gesture.is('scrub')) {
+        scrub(e.clientX - r.left, e.clientY - r.top);
+      } else if (gesture.is('turn')) {
         moving();
         letGo();
         cam.yaw += dx * 0.008;
         clampYaw();
         cam.pitch = Math.max(0.2, Math.min(1.5, cam.pitch + dy * 0.006));
         redraw();
-      } else { letGo(); panBy(dx, dy); }
+      } else if (gesture.is('pan', 'pinch')) { letGo(); panBy(dx, dy); }
       down.set(e.pointerId, { x: e.clientX, y: e.clientY });
     });
     const up = function (e) {
       if (!down.has(e.pointerId)) return;
       down.delete(e.pointerId);
-      if (down.size) return;
+      if (down.size) { if (down.size === 1 && gesture.is('pinch')) gesture.go('pan'); return; }
+      const scrubbed = gesture.is('scrub');
+      gesture.go('idle');
       ui.root.classList.remove('is-dragging');
-      ui.gesture = null;
       const tap = e.type === 'pointerup' && moved < 5, r = cv.getBoundingClientRect();
       // A tap says what is there, at either size. A tap on the route itself also takes the side view there.
       if (tap) {
@@ -27138,10 +27334,9 @@ TT.layer({
         redraw();
       }
       if (ui.scrubAt != null) scrubEnd();
-      if (gesture.scrub) follow();
+      if (scrubbed) follow();
     };
-    cv.addEventListener('pointerup', up);
-    cv.addEventListener('pointercancel', up);
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (type) { cv.addEventListener(type, up); });
     cv.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse' && !pinned && !down.size) { hover = null; describe(null); redraw(); } });
     cv.addEventListener('wheel', function (e) {
       e.preventDefault();
@@ -27443,7 +27638,7 @@ TT.layer({
 
     if (q.has('verify')) {
       const s = document.createElement('script');
-      s.text = "/*\n * Dimension checks: what the project's drawings, maps and documents say, against what the\n * data files hold and what the page actually draws.\n *\n *   node tools/verify.js         checks the data (every fact marked 'data')\n *   open index.html?verify       checks the data and the drawing (facts marked 'drawn'), in a panel\n *\n * Each fact: id, what it is, where the number comes from, the expected value with a tolerance\n * (or a [min, max] range, or true), and how to measure it. Tolerances say how exact the source is:\n * a depth read off a slide is good to about 10 ft; a building height from a database to a few percent.\n * Add a fact whenever a new source gives a number.\n */\n(function (root) {\n  'use strict';\n\n  // Stations where OpenStreetMap streets and the shoreline cross route.js (printed by tools/build-route.js).\n  const AT = {\n    paterson: 83, jfk: 743, bergenline: 3435, palisadeAve: 4410, manhattanAve: 4590, hcShaft: 5350,\n    hblr1: 5812, hblr2: 5893, willow: 6208, park: 6450, njBulkhead: 6593, nyBulkhead: 12153,\n    twelfthAve: 12336, twelfthShaft: 12465, eleventhAve: 13328, tenthAve: 14250\n  };\n  const BORE = 28.67, TOP_OF_RAIL_BELOW_CENTRE = 7.5;\n\n  function context(TT) {\n    const d = TT.data.get, at = TT.profile.at;\n    const tube = d('alignment').tubes[0].profile;\n    const rock = d('geology').units.find(function (u) { return u.id === 'newark'; }).top;\n    const work = function (id) { return d('works').items.find(function (w) { return w.id === id; }); };\n    const building = function (name) { return d('buildings').list.find(function (b) { return b.name === name; }); };\n    const range = function (from, to, step, fn) { const out = []; for (let s = from; s <= to; s += step) out.push(fn(s)); return out; };\n    return {\n      TT: TT, d: d, at: at, work: work, building: building, range: range,\n      ground: function (s) { return at(d('terrain').profile, s); },\n      centre: function (s) { return at(tube, s); },\n      crown: function (s) { return at(tube, s) + BORE / 2; },\n      rail: function (s) { return at(tube, s) - TOP_OF_RAIL_BELOW_CENTRE; },\n      rock: function (s) { return at(rock, s); }\n    };\n  }\n\n  const facts = [];\n  const fact = function (kind, id, what, source, expect, tol, units, measure) {\n    facts.push({ kind: kind, id: id, what: what, source: source, expect: expect, tol: tol, units: units, measure: measure });\n  };\n  const data = fact.bind(null, 'data'), drawn = fact.bind(null, 'drawn');\n  const SLIDE14 = 'NJ ACI 2024 slide 14 (Palisades profile)', I3 = 'Appendix I-3 (NJ segment section)';\n  const GDC9 = 'GDC Sept 2023 slide 9 (HYCC-3 profile)', A15 = 'Appendix 15 geology text', SSP = 'SkyscraperPage database, Nov 2026';\n\n  /* ---------- tunnel depth below ground, ground to tunnel crown ---------- */\n  data('depth-paterson', 'Depth to tunnel at Paterson Plank Rd', SLIDE14, 82, 12, 'ft', function (c) { return c.ground(AT.paterson) - c.crown(AT.paterson); });\n  data('depth-jfk', 'Depth to tunnel at JFK Blvd', SLIDE14, 188, 12, 'ft', function (c) { return c.ground(AT.jfk) - c.crown(AT.jfk); });\n  data('depth-bergenline', 'Depth to tunnel at Bergenline Ave', SLIDE14, 268, 12, 'ft', function (c) { return c.ground(AT.bergenline) - c.crown(AT.bergenline); });\n  data('depth-palisade', 'Depth to tunnel at Palisade Ave', I3, 260, 15, 'ft', function (c) { return c.ground(AT.palisadeAve) - c.crown(AT.palisadeAve); });\n  data('depth-manhattan-ave', 'Depth to tunnel at Manhattan Ave', SLIDE14 + '; ' + I3, 234, 15, 'ft', function (c) { return c.ground(AT.manhattanAve) - c.crown(AT.manhattanAve); });\n  data('depth-hblr', 'Depth to tunnel under the light rail (track 1)', I3, 80, 12, 'ft', function (c) { return c.ground(AT.hblr1) - c.crown(AT.hblr1); });\n  data('depth-hblr2', 'Depth to tunnel under the light rail (track 2)', I3, 83, 12, 'ft', function (c) { return c.ground(AT.hblr2) - c.crown(AT.hblr2); });\n  // Willow and Park Avenues are measured from bridge decks about 25 ft above the bare-earth ground, hence the wide band.\n  data('depth-willow', 'Depth to tunnel at Willow Ave (from the bridge deck)', I3, 113, 35, 'ft', function (c) { return c.ground(AT.willow) - c.crown(AT.willow); });\n  data('deck-willow', 'Willow Ave bridge deck (data/roads.js) to tunnel crown', I3, 113, 12, 'ft', function (c) {\n    const r = c.d('roads').crossings.find(function (x) { return x.name === 'Willow Avenue'; });\n    return r && r.bridge && r.base != null ? r.base - c.crown(r.station) : NaN;\n  });\n  /* ---------- Penn Station (FRA Phase I Report) ---------- */\n  data('penn-platforms', 'Platforms 1 and 2 run from 8th Ave to 7th Ave', 'FRA Penn Station SOS Phase I, p. 7 (track plan)', 0, 60, 'ft off', function (c) {\n    const p = c.d('station').levels.find(function (l) { return l.id === 'platforms-1-2'; });\n    const ave = function (n) { return c.d('roads').crossings.find(function (r) { return r.name === n; }).station; };\n    return Math.max(Math.abs(p.from - ave('8th Avenue')), Math.abs(p.to - ave('7th Avenue')));\n  });\n  data('penn-order', 'Penn Station levels stack as on the cross section: tracks, lower level, upper level, street', 'FRA Penn Station SOS Phase I, p. 20 (Figure 2)', true, 0, '', function (c) {\n    const L = {}; c.d('station').levels.forEach(function (l) { L[l.id] = l; });\n    return L.tracks.top <= L.lower.bottom && L.lower.top <= L.upper.bottom && L.upper.top < c.ground(16500);\n  });\n  data('river-drive-end', 'River machines stop halfway through the HYCC-3 casing', 'Assumed; GDC Sept 2023 slide 14 (Manhattan Tunnel to HYCC-3)', 0, 5, 'ft off', function (c) {\n    const h = c.work('hycc-3'), mid = (h.from + h.to) / 2;\n    return Math.max.apply(null, c.d('tbm').machines.filter(function (m) { return m.from > 0; }).map(function (m) { return Math.abs(m.to - mid); }));\n  });\n  data('depth-park', 'Depth to tunnel at Park Ave (from the bridge deck)', I3, 110, 35, 'ft', function (c) { return c.ground(AT.park) - c.crown(AT.park); });\n\n  /* ---------- Manhattan levels ---------- */\n  data('rail-bulkhead', 'Top of rail at the Manhattan bulkhead', GDC9, -61, 6, 'ft', function (c) { return c.rail(AT.nyBulkhead); });\n  data('rail-11th', 'Top of rail at 11th Ave', GDC9, -38, 6, 'ft', function (c) { return c.rail(AT.eleventhAve); });\n  data('rail-10th', 'Top of rail at 10th Ave', GDC9, -18, 6, 'ft', function (c) { return c.rail(AT.tenthAve); });\n\n  /* ---------- shafts ---------- */\n  data('shaft-hc-depth', 'Hudson County Shaft depth', 'NJ ACI slide 14 (~100 ft); Appendix I-3 (~116 ft)', [95, 120], null, 'ft', function (c) { const w = c.work('hudson-county-shaft'); return c.ground(w.station) - w.bottom; });\n  data('shaft-12th-bottom', '12th Avenue Shaft bottom', GDC9, -71, 6, 'ft', function (c) { return c.work('twelfth-ave-shaft').bottom; });\n  data('shaft-12th-place', '12th Avenue Shaft just east of 12th Ave', GDC9 + ' plan', [50, 250], null, 'ft east', function (c) { return c.work('twelfth-ave-shaft').station - AT.twelfthAve; });\n\n  /* ---------- lengths along the route ---------- */\n  data('len-palisades', 'Palisades Tunnel length (\"the first mile\")', SLIDE14, 5280, 530, 'ft', function () { return AT.hcShaft; });\n  data('len-weehawken', 'Cliff foot to the Weehawken Cove bulkhead (~1,720 ft)', I3, 1720, 260, 'ft', function (c) {\n    let s = 4500; while (c.ground(s) > 20) s += 10;\n    return AT.njBulkhead - s;\n  });\n  data('len-shaft-to-hblr', 'Hudson County Shaft to the light rail (~500 ft, scaled)', I3, 500, 200, 'ft', function () { return AT.hblr1 - AT.hcShaft; });\n  data('len-hrgs', 'Hudson River Ground Stabilization length', 'NJ ACI 2024 slide 11', 1200, 120, 'ft', function (c) { const w = c.work('hrgs'); return w.to - w.from; });\n  data('bulkhead-crosscheck', 'Manhattan bulkhead: OSM shoreline vs Appendix I-2 scaled (12,156 ft)', 'Appendix I-2', 12156, 100, 'ft', function () { return AT.nyBulkhead; });\n  data('order', 'Places in the same order as the drawings', 'Appendix I-2, I-3; NJ ACI slides 14, 16; GDC slide 9', true, null, '', function (c) {\n    const seq = [-377, AT.paterson, AT.jfk, AT.bergenline, AT.palisadeAve, AT.manhattanAve, AT.hcShaft, AT.hblr1, AT.willow, AT.park,\n      AT.njBulkhead, c.work('hrgs').from, AT.nyBulkhead, AT.twelfthAve, AT.twelfthShaft, AT.eleventhAve, AT.tenthAve];\n    return seq.every(function (s, i) { return i === 0 || s > seq[i - 1]; });\n  });\n\n  /* ---------- the river ---------- */\n  data('cover-hrgs', 'Least cover over the tunnel in the stabilized zone (why it is stabilized)', 'FEIS schedule: \"Low Cover Protection (In-River Work by Barge)\"', [0, 20], null, 'ft', function (c) {\n    const w = c.work('hrgs');\n    return Math.min.apply(null, c.range(w.from, w.to, 20, function (s) { return c.ground(s) - c.crown(s); }));\n  });\n  data('cover-river', 'Least cover under the river outside the stabilized zone', 'Appendix I-2 (tunnel well below the riverbed there)', [15, 200], null, 'ft', function (c) {\n    return Math.min.apply(null, c.range(AT.njBulkhead, c.work('hrgs').from, 20, function (s) { return c.ground(s) - c.crown(s); }));\n  });\n  data('channel-depth', 'Deepest riverbed in the navigation channels (40 to 45 ft dredged)', A15, [-65, -40], null, 'ft', function (c) {\n    return Math.min.apply(null, c.range(AT.njBulkhead, AT.nyBulkhead, 25, c.ground));\n  });\n  data('low-point', 'Tunnel low point in the NJ half of the river', 'P1C-GP-5100 profile; Appendix I-2', [AT.njBulkhead, (AT.njBulkhead + AT.nyBulkhead) / 2], null, 'ft', function (c) {\n    let best = AT.njBulkhead; c.range(AT.njBulkhead, AT.nyBulkhead, 50, function (s) { if (c.centre(s) < c.centre(best)) best = s; });\n    return best;\n  });\n  data('rock-nj', 'Rock below low water at the NJ bulkhead (~60 ft)', A15, -60, 20, 'ft', function (c) { return c.rock(AT.njBulkhead); });\n  data('rock-ny', 'Rock below low water at the NY bulkhead (~150 ft)', A15 + '; ' + GDC9, -150, 20, 'ft', function (c) { return c.rock(AT.nyBulkhead); });\n  data('rock-trough', 'Rock trough under the river deeper than 300 ft (to within 10 ft)', A15, [-340, -290], null, 'ft', function (c) {\n    return Math.min.apply(null, c.range(AT.njBulkhead, AT.nyBulkhead, 50, c.rock));\n  });\n\n  /* ---------- rock types where they meet the rock surface, against the state map ---------- */\n  const NJGWS = 'NJ Geological and Water Survey bedrock map, 1:100,000 (data/map-geology.js)';\n  const contact = function (c, id) {\n    // First station where a unit's top reaches the rock surface.\n    const u = c.d('geology').units.find(function (x) { return x.id === id; });\n    const p = u.top.find(function (pt) { return Math.abs(pt[1] - c.rock(pt[0])) < 5; });\n    return p ? p[0] : NaN;\n  };\n  data('geo-diabase-west', 'Palisades diabase reaches the rock surface (west edge)', NJGWS, 300, 200, 'ft', function (c) { return contact(c, 'palisades-sill'); });\n  data('geo-diabase-east', 'Palisades diabase ends at the cliff foot (east edge)', NJGWS, 4950, 200, 'ft', function (c) {\n    const u = c.d('geology').units.find(function (x) { return x.id === 'palisades-sill'; }); return u.top[u.top.length - 1][0];\n  });\n  data('geo-schist', 'Manhattan schist begins under the river', NJGWS, 8600, 250, 'ft', function (c) { return contact(c, 'schist'); });\n\n  data('rock-hcs', 'Rock reached 50 to 60 ft down at the Hudson County Shaft', 'GDC via Construction Dive, 19 Nov 2026', [45, 65], null, 'ft', function (c) {\n    const s = c.work('hudson-county-shaft').station; return c.ground(s) - c.rock(s);\n  });\n\n  /* ---------- the tunnel itself ---------- */\n  data('grade-palisades', 'Palisades downgrade (rail tunnels stay under about 2%)', SLIDE14 + ' (straight line)', [1, 2], null, '%', function (c) { return (c.centre(0) - c.centre(AT.hcShaft)) / AT.hcShaft * 100; });\n  data('xp-palisades', 'Cross passages in the Palisades Tunnel', SLIDE14 + '; GDC slide 14', 6, 0, '', function (c) {\n    return c.work('cross-passages').stations.filter(function (s) { return s > 0 && s < AT.hcShaft; }).length;\n  });\n  // Shafts and the portal are exits too, so they count as breaks in the spacing.\n  data('xp-spacing', 'Widest gap between cross passages or exits (US rule: 800 ft)', 'NFPA 130', [0, 820], null, 'ft', function (c) {\n    const exits = [0, c.work('hudson-county-shaft').station, c.work('twelfth-ave-shaft').station];\n    const st = exits.concat(c.work('cross-passages').stations).sort(function (a, b) { return a - b; });\n    let gap = 0; for (let i = 1; i < st.length; i++) gap = Math.max(gap, st[i] - st[i - 1]);\n    return gap;\n  });\n  data('bore', 'Bore diameter (28 ft 8 in cutterhead)', 'Press, autumn 2026', 28.67, 0.05, 'ft', function (c) { return c.d('alignment').boreDiameter; });\n  data('lining', 'Bore leaves room for the 25 ft 2 in lining and its segments', 'Appendix I-5', [26, 30], null, 'ft', function (c) { return c.d('tbm').machines[0].diameterFt; });\n  data('tbm-length', 'Machine length with trailing gear', 'Press, autumn 2026', 500, 30, 'ft', function (c) { return c.d('tbm').machines[0].lengthFt; });\n\n  /* ---------- buildings ---------- */\n  [['15 Hudson Yards', 914], ['30 Hudson Yards', 1296], ['10 Hudson Yards', 895], ['35 Hudson Yards', 1010],\n    ['50 Hudson Yards', 981], ['55 Hudson Yards', 780], ['The Spiral', 1031]].forEach(function (t) {\n    data('h-' + t[0].toLowerCase().replace(/\\W+/g, '-'), t[0] + ' roof height', SSP, t[1], Math.round(t[1] * 0.04), 'ft', function (c) {\n      const b = c.building(t[0]); return b ? b.height : NaN;\n    });\n  });\n  data('cut-15hy', '15 Hudson Yards stands over the tunnel line (501 W 30th St)', SSP + ' address; Overture footprint', [0, 60], null, 'ft off', function (c) { return c.building('15 Hudson Yards').offset; });\n\n  /* ---------- the drawing: does the page put things where the data says? ---------- */\n  // These read the SVG the page drew and convert back to feet, so they catch mistakes in the scale and the layers.\n  const elevOf = function (TT, y) { return TT.config.extent.elevMax - y / TT.scale.ky; };\n  const pointsOf = function (el) { return el.getAttribute('points').trim().split(/\\s+/).map(function (p) { return p.split(',').map(Number); }); };\n  const nearestY = function (pts, x) { let best = pts[0]; pts.forEach(function (p) { if (Math.abs(p[0] - x) < Math.abs(best[0] - x)) best = p; }); return best[1]; };\n\n  drawn('draw-shape', 'Scene not stretched: same pixels per unit across and down', 'css/app.css, config/scene.js', 1, 0.01, 'ratio', function (c) {\n    const r = c.TT.svg.getBoundingClientRect(), vb = c.TT.svg.viewBox.baseVal;\n    return (r.width / vb.width) / (r.height / vb.height);\n  });\n  drawn('draw-ground', 'Ground line at JFK Blvd drawn at the terrain height', 'terrain.js', 0, 1, 'ft off', function (c) {\n    // The surface line; a look without one still cuts the ground to the same edge.\n    const g = document.querySelectorAll('#tt-layer-geology > polyline'), edge = g[g.length - 1] || document.querySelector('#tt-ground-clip polygon');\n    const s = 703;   // a terrain sample point\n    return elevOf(c.TT, nearestY(pointsOf(edge), c.TT.scale.x(s))) - c.ground(s);\n  });\n  drawn('draw-tunnel', 'Tunnel centre at the Hudson County Shaft drawn at its level', 'alignment.js', 0, 1, 'ft off', function (c) {\n    const line = document.querySelector('#tt-layer-tunnel [data-tube=\"north\"] polyline');\n    return elevOf(c.TT, nearestY(pointsOf(line), c.TT.scale.x(AT.hcShaft))) - c.centre(AT.hcShaft);\n  });\n  drawn('draw-shaft', 'Hudson County Shaft drawn from the ground to its bottom', 'works.js', 0, 1, 'ft off', function (c) {\n    const r = document.querySelector('[data-work=\"hudson-county-shaft\"] rect'), w = c.work('hudson-county-shaft');\n    const top = elevOf(c.TT, +r.getAttribute('y')), bottom = elevOf(c.TT, +r.getAttribute('y') + +r.getAttribute('height'));\n    return Math.max(Math.abs(top - c.ground(w.station)), Math.abs(bottom - w.bottom));\n  });\n  // A building's box, in any look: its picture or outline (a landmark picture may draw past it), else its facade's extent.\n  const buildingBox = function (g) {\n    const e = g.querySelector(':scope > :is(svg, rect)');\n    return e ? { x: +e.getAttribute('x'), y: +e.getAttribute('y'), width: +e.getAttribute('width') } : g.getBBox();\n  };\n  const boxOf = function (name) { return buildingBox(document.querySelector('[data-name=\"' + name + '\"]')); };\n  drawn('draw-15hy', '15 Hudson Yards drawn 914 ft tall', 'buildings.js', 0, 2, 'ft off', function (c) {\n    const v = boxOf('15 Hudson Yards'), b = c.building('15 Hudson Yards');\n    return elevOf(c.TT, v.y) - (b.base + b.height);\n  });\n  // Its footprint reaches across 11th Avenue's place along the route; the cut row stops at the street (layers/buildings.js).\n  drawn('draw-15hy-width', '15 Hudson Yards drawn from 11th Ave to the east end of its footprint', 'buildings.js, roads.js', 0, 2, 'ft off', function (c) {\n    const v = boxOf('15 Hudson Yards'), b = c.building('15 Hudson Yards');\n    const r = c.d('roads').crossings.find(function (x) { return x.name === '11th Avenue'; });\n    const avenueEnd = r.from + r.elements.reduce(function (a, e) { return a + (e.width || 0); }, 0);\n    const x0 = v.x, x1 = x0 + v.width;\n    return Math.max(Math.abs(c.TT.scale.station(x0) - avenueEnd), Math.abs(c.TT.scale.station(x1) - (b.station + b.width / 2)));\n  });\n  drawn('draw-tbm', 'TBM 1 cutting face drawn at its station', 'status.js via feed.js', 0, 2, 'ft off', function (c) {\n    const g = document.querySelector('#tt-layer-tbm [data-machine=\"tbm-1\"] g');\n    const x = +/translate\\(([-\\d.]+)/.exec(g.getAttribute('transform'))[1];\n    return c.TT.scale.station(x) - c.TT.state.machines['tbm-1'].station;\n  });\n  drawn('draw-label', 'JFK Blvd label drawn at the OSM crossing', 'labels.js', 0, 1, 'ft off', function (c) {\n    const t = Array.from(document.querySelectorAll('#tt-layer-labels text')).find(function (e) { return e.textContent === 'JFK Blvd'; });\n    return c.TT.scale.station(+t.getAttribute('x')) - AT.jfk;\n  });\n  drawn('draw-minimap', 'Minimap puts TBM 1 at the same place on the map', 'minimap.js via geo.js', 0, 25, 'ft off', function (c) {\n    const dot = document.querySelector('#tt-minimap-map circle');\n    return c.TT.geo.stationAt(+dot.getAttribute('cx'), -dot.getAttribute('cy')).station - c.TT.state.machines['tbm-1'].station;\n  });\n\n  /* ---------- the page's behaviour, checked in the running page ---------- */\n  // Each one puts the view back as it found it.\n  const keepView = function (TT, fn) {\n    const el = TT.viewport.el, left = el.scrollLeft, top = el.scrollTop;\n    try { return fn(el); } finally { el.scrollLeft = left; el.scrollTop = top; }\n  };\n\n  drawn('ui-fit', 'Fit is on when the page opens', 'src/ui.js, index.html', true, 0, '', function () {\n    return document.getElementById('tt-fit').getAttribute('aria-pressed') === 'true';\n  });\n  drawn('ui-dot', \"Side view's dot sits on the tunnel centre line\", 'src/ui.js marks()', 0, 1, 'ft off', function (c) {\n    const vp = c.TT.viewport, dot = document.querySelector('#tt-marks .tt-centre');\n    const y = (parseFloat(dot.style.top) + vp.el.scrollTop) / vp.pxPerUnit();\n    return elevOf(c.TT, y) - c.centre(vp.range().dot);\n  });\n  drawn('ui-end-east', 'Scrolled to the east stop, the dot is at the last real station', 'src/viewport.js', 0, 1, 'ft off', function (c) {\n    return keepView(c.TT, function (el) { el.scrollLeft = c.TT.viewport.maxLeft(); return c.TT.viewport.range().dot - c.TT.config.extent.stationMax; });\n  });\n  drawn('ui-end-west', 'Scrolled to the west stop, the dot is at the first real station', 'src/viewport.js', 0, 1, 'ft off', function (c) {\n    return keepView(c.TT, function (el) { el.scrollLeft = c.TT.viewport.minLeft(); return c.TT.viewport.range().dot - c.TT.config.extent.stationMin; });\n  });\n  drawn('ui-no-vscroll', 'Nothing scrolls the side view up and down but the code (no vertical swipe, wheel or scrollbar)', 'css/app.css #tt-viewport', 0, 0, 'ways in', function () {\n    const cs = getComputedStyle(document.getElementById('tt-viewport'));\n    return (cs.overflowY === 'hidden' ? 0 : 1) + (cs.touchAction === 'none' ? 0 : 1);\n  });\n  drawn('ui-drag-fit', 'A finger drag carries on from where Fit moved the view, not from where it started', 'src/viewport.js drag', 0, 1, 'px off', function (c) {\n    return keepView(c.TT, function (el) {\n      const pe = function (type, x) { el.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', pointerId: 77, clientX: x, clientY: 300, bubbles: true, cancelable: true })); };\n      c.TT.viewport.goTo(8000, false);\n      pe('pointerdown', 200); pe('pointermove', 190);\n      el.scrollLeft += 300;                      // as Fit does when it zooms\n      const fitLeft = el.scrollLeft;\n      pe('pointermove', 180); pe('pointercancel', 180);\n      return el.scrollLeft - (fitLeft + 10);\n    });\n  });\n  drawn('ui-map-toggle', 'Map and the hide button show and hide the corner map, and never open the big map', 'src/ui.js', 0, 0, 'wrong', function (c) {\n    const mini = document.getElementById('tt-minimap'), btn = document.getElementById('tt-open-map'), was = mini.hidden;\n    let wrong = 0;\n    if (was) btn.click();\n    document.getElementById('tt-map-hide').click();\n    wrong += mini.hidden && btn.getAttribute('aria-expanded') === 'false' ? 0 : 1;\n    btn.click();\n    wrong += !mini.hidden && btn.getAttribute('aria-expanded') === 'true' ? 0 : 1;\n    btn.click();\n    wrong += mini.hidden ? 0 : 1;\n    wrong += c.TT.mapview.stage === 'mini' ? 0 : 1;\n    if (!was) btn.click();\n    return wrong;\n  });\n  drawn('ui-map-info', 'Map info box: Close in its top right corner hides it; on phones it is at most 240 px wide', 'src/mapview.js describe, css/map.css', 0, 0, 'wrong', function (c) {\n    const mv = c.TT.mapview, was = mv.stage, info = document.querySelector('.tt-map-info');\n    if (was === 'mini') mv.setStage('split');\n    mv.describeStation(9000);\n    const box = info.getBoundingClientRect(), x = info.querySelector('.tt-map-info-close'), xr = x && x.getBoundingClientRect();\n    let wrong = 0;\n    wrong += xr && box.right - xr.right < 8 && xr.top - box.top < 8 ? 0 : 1;\n    wrong += innerWidth > 720 || box.width <= 240 ? 0 : 1;\n    if (x) x.click();\n    wrong += info.hidden ? 0 : 1;\n    if (was === 'mini') mv.setStage('mini');\n    return wrong;\n  });\n  drawn('ui-map-south', 'In 2D, a tap finds a plain building north of the route but not one more than 900 ft south', 'src/mapview.js hitTest', 0, 0, 'wrong', function (c) {\n    const mv = c.TT.mapview, was = mv.stage, view = mv.camera().view || 'cut';   // never opened: it opens in Cut\n    mv.setStage('full', '2d');\n    const north = mv.tapBuilding(function (b) { return !b.south && !b.inSideView && b.off > 1200; });\n    const far = mv.tapBuilding(function (b) { return b.south && !b.inSideView && b.off > 1200; });\n    mv.setStage(was === 'mini' ? 'split' : was, view);\n    if (was === 'mini') mv.setStage('mini');\n    return (north === true ? 0 : 1) + (far === false ? 0 : 1);\n  });\n  drawn('ui-street-gaps', 'No building in the cut is drawn over a street', 'layers/buildings.js', 0, 0, 'overlaps', function (c) {\n    // Each street's place along the route from the roads data (a drawn bridge picture can reach past its street).\n    const roads = c.d('roads').crossings.map(function (r) {\n      const w = r.elements.reduce(function (a, e) { return a + (e.width || 0); }, 0);\n      return [c.TT.scale.x(r.from), c.TT.scale.x(r.from + w)];\n    });\n    let n = 0;\n    // Each building's box, whatever draws it.\n    document.querySelectorAll('#tt-layer-buildings g[data-row=\"0\"] [data-building]').forEach(function (e) {\n      const b = buildingBox(e), x0 = b.x, x1 = x0 + b.width;\n      roads.forEach(function (r) { if (Math.min(x1, r[1]) - Math.max(x0, r[0]) > 1) n++; });\n    });\n    return n;\n  });\n  drawn('draw-trees', 'Every tree from the canopy height map is drawn, at its height, in its row', 'layers/trees.js, trees-behind.js, trees.js', 0, 0, 'wrong', function (c) {\n    // Row 1 is drawn first (behind the buildings), then row 0; both west to east.\n    const all = c.d('trees').list, list = all.filter(function (t) { return t.row === 1; }).concat(all.filter(function (t) { return !t.row; }));\n    const drawnTrees = document.querySelectorAll('#tt-layer-trees-behind [data-tree], #tt-layer-trees [data-tree]');\n    let wrong = Math.abs(drawnTrees.length - list.length);\n    drawnTrees.forEach(function (g, i) {\n      const e = g.querySelector('svg, ellipse'), t = list[i];\n      const top = e.tagName === 'svg' ? +e.getAttribute('y') : +e.getAttribute('cy') - +e.getAttribute('ry');\n      if (Math.abs(elevOf(c.TT, top) - (c.ground(t.station) + t.height)) > 2) wrong++;\n    });\n    return wrong;\n  });\n  // Layers drawn in Sketch, the base look: every shape is a sprite picture or is filled or painted from a sprite tile.\n  // Left out on purpose: the labels and contracts layers, whose lines and tag boxes go with their text.\n  drawn('draw-sprites', 'Sketch: every shape in the side view comes from a sprite sheet, except label and contract lines', 'layers/*.js, themes/sketch.js', 0, 0, 'shapes', function (c) {\n    const TT = c.TT, was = TT.state.theme;\n    let n = 0;\n    // known: Survey draws trees, machines, road cross-sections and outlines as plain lines (about 1,300 shapes).\n    [TT.config.baseTheme].forEach(function (look) {\n      if (TT.state.theme !== look) TT.setTheme(look);\n      document.querySelectorAll('.tt-layer:not([data-layer=\"labels\"]):not([data-layer=\"contracts\"])').forEach(function (layer) {\n        layer.querySelectorAll('rect, polygon, polyline, path, line, ellipse, circle').forEach(function (e) {\n          if (e.closest('svg') !== TT.svg || e.closest('pattern, clipPath, defs')) return;   // inside a sprite, or not drawn itself\n          if (!/url\\(/.test((e.getAttribute('fill') || '') + (e.getAttribute('stroke') || ''))) n++;\n        });\n      });\n    });\n    if (TT.state.theme !== was) TT.setTheme(was);\n    return n;\n  });\n  drawn('ui-penn-inset','Penn Station close-up: shows all its levels under the station, hides elsewhere, × hides it until you leave', 'src/station-inset.js', 0, 0, 'wrong', function (c) {\n    const box = document.getElementById('tt-station-inset'), si = c.TT.stationInset;\n    return keepView(c.TT, function () {\n      let wrong = 0;\n      c.TT.viewport.goTo(16300, false); si.update();\n      wrong += !box.hidden && box.querySelectorAll('[data-level]').length === c.d('station').levels.length ? 0 : 1;\n      box.querySelector('button').click();\n      wrong += box.hidden ? 0 : 1;\n      c.TT.viewport.goTo(9000, false); si.update();\n      wrong += box.hidden ? 0 : 1;\n      c.TT.viewport.goTo(16300, false); si.update();\n      wrong += box.hidden ? 1 : 0;\n      return wrong;\n    });\n  });\n  drawn('ui-layers-over-dock', 'The map\\u2019s Layers panel, while open, sits over the dock (TBM info, Fit)', 'css/map.css', 0, 0, 'wrong', function (c) {\n    const mv = c.TT.mapview, was = mv.stage;\n    if (was === 'mini') mv.setStage('split');\n    const layers = document.querySelector('#tt-map .tt-map-layers'), z = function (id) { return +getComputedStyle(document.getElementById(id)).zIndex || 0; };\n    layers.open = true;\n    const wrong = z('tt-map') > z('tt-dock') ? 0 : 1;\n    layers.open = false;\n    if (was === 'mini') mv.setStage('mini');\n    return wrong;\n  });\n  drawn('ui-styles-close', 'Styles and data: no arrow, the title does not close it, \\u00d7 does', 'src/ui.js, css/app.css', 0, 0, 'wrong', function () {\n    const panel = document.getElementById('tt-panel'), summary = panel.querySelector('summary');\n    let wrong = 0;\n    document.getElementById('tt-open-styles').click();\n    wrong += getComputedStyle(summary).listStyleType === 'none' ? 0 : 1;\n    summary.click();\n    wrong += panel.open && !panel.hidden ? 0 : 1;\n    document.getElementById('tt-panel-close').click();\n    wrong += !panel.open ? 0 : 1;\n    return wrong;\n  });\n  drawn('ui-map-heights', 'Map Layers: heights are a 1\\u00d7 / 2\\u00d7 / 4\\u00d7 toggle, and the key starts open', 'src/mapview.js', 0, 0, 'wrong', function (c) {\n    const mv = c.TT.mapview, was = mv.stage;\n    if (was === 'mini') mv.setStage('split');\n    const b = Array.prototype.slice.call(document.querySelectorAll('#tt-map [data-vz]'));\n    let wrong = b.map(function (x) { return x.textContent; }).join(' ') === '1\\u00d7 2\\u00d7 4\\u00d7' ? 0 : 1;\n    wrong += document.querySelector('#tt-map .tt-map-legend').open ? 0 : 1;\n    b[2].click();\n    wrong += mv.camera().vz === 4 && b[2].getAttribute('aria-pressed') === 'true' && b[0].getAttribute('aria-pressed') === 'false' ? 0 : 1;\n    b[0].click();\n    wrong += mv.camera().vz === 1 ? 0 : 1;\n    if (was === 'mini') mv.setStage('mini');\n    return wrong;\n  });\n  drawn('ui-map-cut-default', 'The map opens in Cut, aimed at the wall', 'src/mapview.js DEFAULT_VIEW', 0, 0, 'wrong', function (c) {\n    const mv = c.TT.mapview, was = mv.stage;\n    if (!mv.openedIn) { mv.setStage('split'); mv.setStage(was); }   // not opened yet this visit: open it once\n    const first = mv.openedIn;\n    return (first.view === 'cut' ? 0 : 1) + (first.track === 'face' ? 0 : 1);\n  });\n  drawn('ui-map-dot-depth', 'In 3D the map\\u2019s dot sits on the tunnel centre line, not the ground', 'src/mapview.js centreAt', 0, 0, 'wrong', function (c) {\n    const mv = c.TT.mapview, was = mv.stage, view = mv.camera().view || 'cut';\n    mv.setStage('full', 'cut');\n    const p = mv.dotCheck(), d = function (a, b) { return Math.hypot(a[0] - b[0], a[1] - b[1]); };\n    mv.setStage('full', view);\n    mv.setStage(was);\n    // On the centre line, and visibly away from the ground (the tunnel is tens of feet down everywhere).\n    return (d(p.dot, p.centre) < 1 ? 0 : 1) + (d(p.dot, p.ground) > 3 ? 0 : 1);\n  });\n  drawn('ui-goto', 'Going to a station puts the dot on it', 'src/viewport.js goTo', 0, 5, 'ft off', function (c) {\n    return keepView(c.TT, function () { c.TT.viewport.goTo(9000, false); return c.TT.viewport.range().dot - 9000; });\n  });\n  drawn('ui-map-full', 'Expanded map takes about 3/4 of the page and the side view keeps the rest', 'css/map.css', [0.7, 0.8], 0, 'of the page', function (c) {\n    return keepView(c.TT, function () {\n      const was = c.TT.mapview.stage;\n      try {\n        c.TT.mapview.setStage('full');\n        const m = document.getElementById('tt-map').getBoundingClientRect(), v = c.TT.viewport.el.getBoundingClientRect();\n        if (!(v.width > 50 && v.height > 50)) return 0;\n        const wide = m.height > window.innerHeight * 0.9;   // beside the side view on wide screens, below it on phones\n        return wide ? m.width / window.innerWidth : m.height / window.innerHeight;\n      } finally { c.TT.mapview.setStage(was); }\n    });\n  });\n  drawn('ui-cut-south', 'Cut never turns past the south side (within 90° of square to the route)', 'src/mapview.js clampYaw', [0, 90.5], 0, '° off square', function (c) {\n    return keepView(c.TT, function () {\n      const mv = c.TT.mapview, was = mv.stage, map = document.getElementById('tt-map');\n      let view = null;\n      try {\n        mv.setStage('full');\n        view = mv.camera().view;\n        mv.setStage('full', 'cut');\n        let worst = 0;\n        ['e', 'q'].forEach(function (key) {\n          for (let i = 0; i < 40; i++) map.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));\n          const face = (c.TT.geo.at(c.TT.viewport.range().dot).bearing - 90) * Math.PI / 180, d = mv.camera().yaw - face;\n          worst = Math.max(worst, Math.abs(Math.atan2(Math.sin(d), Math.cos(d))) * 180 / Math.PI);\n        });\n        return worst;\n      } finally { if (view) mv.setStage('full', view); mv.setStage(was); }\n    });\n  });\n\n  // Last, as it redraws the scene: the checks above measure the look the page opened in.\n  // The picture is its own GPU layer, so Fit's easing zoom and drags move what is already drawn. Without it Chrome\n  // redrew every tile on screen at each step (7-9x the raster work, measured) and showed blank frames while dragging.\n  drawn('ui-gpu-layer', 'Side view: the picture is its own GPU layer, so dragging and Fit do not repaint it', 'css/app.css', 0, 0, 'wrong', function (c) {\n    return getComputedStyle(c.TT.svg).willChange.indexOf('transform') >= 0 ? 0 : 1;\n  });\n  drawn('ui-looks', 'Styles and data: a button per look, opening in Sketch; pressing one restyles the drawing and shows as pressed', 'src/ui.js, index.html', 0, 0, 'wrong', function (c) {\n    const TT = c.TT, was = TT.state.theme, buttons = Array.prototype.slice.call(document.querySelectorAll('#tt-looks button'));\n    const sky = function () { const r = document.querySelector('#tt-layer-sky rect'); return r && r.getAttribute('fill') + (TT.styleFor('sky').fill || ''); };\n    let wrong = buttons.length === Object.keys(TT.themes).length ? 0 : 1;\n    // Without ?theme the page opens in the default look (config defaultTheme).\n    if (!new URLSearchParams(location.search).get('theme') && was !== TT.config.defaultTheme) wrong++;\n    buttons.forEach(function (b) {\n      if (b.value === was) return;\n      const before = sky();\n      b.click();\n      wrong += TT.state.theme === b.value && b.getAttribute('aria-pressed') === 'true' ? 0 : 1;\n      wrong += document.querySelector('#tt-layer-geology').getAttribute('data-theme') === b.value && sky() !== before ? 0 : 1;\n      wrong += buttons.filter(function (x) { return x.getAttribute('aria-pressed') === 'true'; }).length === 1 ? 0 : 1;\n    });\n    buttons.find(function (b) { return b.value === was; }).click();\n    return wrong + (TT.state.theme === was ? 0 : 1);\n  });\n\n  /* ---------- running ---------- */\n\n  function check(f, c) {\n    let value, pass;\n    try { value = f.measure(c); } catch (err) { return { f: f, value: NaN, pass: false, error: String(err.message || err) }; }\n    if (f.expect === true) pass = value === true;\n    else if (Array.isArray(f.expect)) pass = value >= f.expect[0] && value <= f.expect[1];\n    else pass = Math.abs(value - f.expect) <= f.tol;\n    return { f: f, value: value, pass: pass };\n  }\n\n  function run(TT, kinds) {\n    const c = context(TT);\n    return facts.filter(function (f) { return kinds.indexOf(f.kind) >= 0; }).map(function (f) { return check(f, c); });\n  }\n\n  const show = function (v) { return typeof v === 'number' ? (Math.abs(v) >= 100 ? Math.round(v) : +v.toFixed(2)) : String(v); };\n  const expected = function (f) {\n    return f.expect === true ? 'true' : Array.isArray(f.expect) ? f.expect[0] + ' to ' + f.expect[1] : f.expect + ' ± ' + f.tol;\n  };\n\n  const api = { facts: facts, run: run, show: show, expected: expected };\n  if (typeof module !== 'undefined' && module.exports) { module.exports = api; return; }\n\n  // In the page (index.html?verify): run everything once the scene is drawn and the feed has ticked, show a panel.\n  root.TT.verify = api;\n  setTimeout(function () {\n    const results = run(root.TT, ['data', 'drawn']);\n    const failed = results.filter(function (r) { return !r.pass; }).length;\n    const panel = document.createElement('section');\n    panel.id = 'tt-verify';\n    panel.setAttribute('aria-label', 'Dimension checks');\n    panel.innerHTML = '<h2>Dimension checks: ' + (results.length - failed) + ' of ' + results.length + ' pass<\/h2>' +\n      '<table><thead><tr><th><\/th><th>Check<\/th><th>Measured<\/th><th>Expected<\/th><th>Source<\/th><\/tr><\/thead><tbody>' +\n      results.map(function (r) {\n        return '<tr class=\"' + (r.pass ? 'ok' : 'bad') + '\"><td>' + (r.pass ? '✓' : '✗') + '<\/td><td>' + r.f.what + (r.f.kind === 'drawn' ? ' <em>(drawn)<\/em>' : '') +\n          '<\/td><td>' + (r.error ? r.error : show(r.value) + ' ' + r.f.units) + '<\/td><td>' + expected(r.f) + '<\/td><td>' + r.f.source + '<\/td><\/tr>';\n      }).join('') + '<\/tbody><\/table>';\n    document.body.appendChild(panel);\n    console.table(results.map(function (r) { return { pass: r.pass, check: r.f.id, measured: r.error || show(r.value), expected: expected(r.f) }; }));\n  }, 1500);\n})(typeof window !== 'undefined' ? window : globalThis);\n";
+      s.text = "/*\n * Dimension checks: what the project's drawings, maps and documents say, against what the\n * data files hold and what the page actually draws.\n *\n *   node tools/verify.js         checks the data (every fact marked 'data')\n *   open index.html?verify       checks the data and the drawing (facts marked 'drawn'), in a panel\n *\n * Each fact: id, what it is, where the number comes from, the expected value with a tolerance\n * (or a [min, max] range, or true), and how to measure it. Tolerances say how exact the source is:\n * a depth read off a slide is good to about 10 ft; a building height from a database to a few percent.\n * Add a fact whenever a new source gives a number.\n */\n(function (root) {\n  'use strict';\n\n  // Stations where OpenStreetMap streets and the shoreline cross route.js (printed by tools/build-route.js).\n  const AT = {\n    paterson: 83, jfk: 743, bergenline: 3435, palisadeAve: 4410, manhattanAve: 4590, hcShaft: 5350,\n    hblr1: 5812, hblr2: 5893, willow: 6208, park: 6450, njBulkhead: 6593, nyBulkhead: 12153,\n    twelfthAve: 12336, twelfthShaft: 12465, eleventhAve: 13328, tenthAve: 14250\n  };\n  const BORE = 28.67, TOP_OF_RAIL_BELOW_CENTRE = 7.5;\n\n  function context(TT) {\n    const d = TT.data.get, at = TT.profile.at;\n    const tube = d('alignment').tubes[0].profile;\n    const rock = d('geology').units.find(function (u) { return u.id === 'newark'; }).top;\n    const work = function (id) { return d('works').items.find(function (w) { return w.id === id; }); };\n    const building = function (name) { return d('buildings').list.find(function (b) { return b.name === name; }); };\n    const range = function (from, to, step, fn) { const out = []; for (let s = from; s <= to; s += step) out.push(fn(s)); return out; };\n    return {\n      TT: TT, d: d, at: at, work: work, building: building, range: range,\n      ground: function (s) { return at(d('terrain').profile, s); },\n      centre: function (s) { return at(tube, s); },\n      crown: function (s) { return at(tube, s) + BORE / 2; },\n      rail: function (s) { return at(tube, s) - TOP_OF_RAIL_BELOW_CENTRE; },\n      rock: function (s) { return at(rock, s); }\n    };\n  }\n\n  const facts = [];\n  const fact = function (kind, id, what, source, expect, tol, units, measure) {\n    facts.push({ kind: kind, id: id, what: what, source: source, expect: expect, tol: tol, units: units, measure: measure });\n  };\n  const data = fact.bind(null, 'data'), drawn = fact.bind(null, 'drawn');\n  const SLIDE14 = 'NJ ACI 2024 slide 14 (Palisades profile)', I3 = 'Appendix I-3 (NJ segment section)';\n  const GDC9 = 'GDC Sept 2023 slide 9 (HYCC-3 profile)', A15 = 'Appendix 15 geology text', SSP = 'SkyscraperPage database, Nov 2026';\n\n  /* ---------- tunnel depth below ground, ground to tunnel crown ---------- */\n  data('depth-paterson', 'Depth to tunnel at Paterson Plank Rd', SLIDE14, 82, 12, 'ft', function (c) { return c.ground(AT.paterson) - c.crown(AT.paterson); });\n  data('depth-jfk', 'Depth to tunnel at JFK Blvd', SLIDE14, 188, 12, 'ft', function (c) { return c.ground(AT.jfk) - c.crown(AT.jfk); });\n  data('depth-bergenline', 'Depth to tunnel at Bergenline Ave', SLIDE14, 268, 12, 'ft', function (c) { return c.ground(AT.bergenline) - c.crown(AT.bergenline); });\n  data('depth-palisade', 'Depth to tunnel at Palisade Ave', I3, 260, 15, 'ft', function (c) { return c.ground(AT.palisadeAve) - c.crown(AT.palisadeAve); });\n  data('depth-manhattan-ave', 'Depth to tunnel at Manhattan Ave', SLIDE14 + '; ' + I3, 234, 15, 'ft', function (c) { return c.ground(AT.manhattanAve) - c.crown(AT.manhattanAve); });\n  data('depth-hblr', 'Depth to tunnel under the light rail (track 1)', I3, 80, 12, 'ft', function (c) { return c.ground(AT.hblr1) - c.crown(AT.hblr1); });\n  data('depth-hblr2', 'Depth to tunnel under the light rail (track 2)', I3, 83, 12, 'ft', function (c) { return c.ground(AT.hblr2) - c.crown(AT.hblr2); });\n  // Willow and Park Avenues are measured from bridge decks about 25 ft above the bare-earth ground, hence the wide band.\n  data('depth-willow', 'Depth to tunnel at Willow Ave (from the bridge deck)', I3, 113, 35, 'ft', function (c) { return c.ground(AT.willow) - c.crown(AT.willow); });\n  data('deck-willow', 'Willow Ave bridge deck (data/roads.js) to tunnel crown', I3, 113, 12, 'ft', function (c) {\n    const r = c.d('roads').crossings.find(function (x) { return x.name === 'Willow Avenue'; });\n    return r && r.bridge && r.base != null ? r.base - c.crown(r.station) : NaN;\n  });\n  /* ---------- Penn Station (FRA Phase I Report) ---------- */\n  data('penn-platforms', 'Platforms 1 and 2 run from 8th Ave to 7th Ave', 'FRA Penn Station SOS Phase I, p. 7 (track plan)', 0, 60, 'ft off', function (c) {\n    const p = c.d('station').levels.find(function (l) { return l.id === 'platforms-1-2'; });\n    const ave = function (n) { return c.d('roads').crossings.find(function (r) { return r.name === n; }).station; };\n    return Math.max(Math.abs(p.from - ave('8th Avenue')), Math.abs(p.to - ave('7th Avenue')));\n  });\n  data('penn-order', 'Penn Station levels stack as on the cross section: tracks, lower level, upper level, street', 'FRA Penn Station SOS Phase I, p. 20 (Figure 2)', true, 0, '', function (c) {\n    const L = {}; c.d('station').levels.forEach(function (l) { L[l.id] = l; });\n    return L.tracks.top <= L.lower.bottom && L.lower.top <= L.upper.bottom && L.upper.top < c.ground(16500);\n  });\n  data('river-drive-end', 'River machines stop halfway through the HYCC-3 casing', 'Assumed; GDC Sept 2023 slide 14 (Manhattan Tunnel to HYCC-3)', 0, 5, 'ft off', function (c) {\n    const h = c.work('hycc-3'), mid = (h.from + h.to) / 2;\n    return Math.max.apply(null, c.d('tbm').machines.filter(function (m) { return m.from > 0; }).map(function (m) { return Math.abs(m.to - mid); }));\n  });\n  data('depth-park', 'Depth to tunnel at Park Ave (from the bridge deck)', I3, 110, 35, 'ft', function (c) { return c.ground(AT.park) - c.crown(AT.park); });\n\n  /* ---------- Manhattan levels ---------- */\n  data('rail-bulkhead', 'Top of rail at the Manhattan bulkhead', GDC9, -61, 6, 'ft', function (c) { return c.rail(AT.nyBulkhead); });\n  data('rail-11th', 'Top of rail at 11th Ave', GDC9, -38, 6, 'ft', function (c) { return c.rail(AT.eleventhAve); });\n  data('rail-10th', 'Top of rail at 10th Ave', GDC9, -18, 6, 'ft', function (c) { return c.rail(AT.tenthAve); });\n\n  /* ---------- shafts ---------- */\n  data('shaft-hc-depth', 'Hudson County Shaft depth', 'NJ ACI slide 14 (~100 ft); Appendix I-3 (~116 ft)', [95, 120], null, 'ft', function (c) { const w = c.work('hudson-county-shaft'); return c.ground(w.station) - w.bottom; });\n  data('shaft-12th-bottom', '12th Avenue Shaft bottom', GDC9, -71, 6, 'ft', function (c) { return c.work('twelfth-ave-shaft').bottom; });\n  data('shaft-12th-place', '12th Avenue Shaft just east of 12th Ave', GDC9 + ' plan', [50, 250], null, 'ft east', function (c) { return c.work('twelfth-ave-shaft').station - AT.twelfthAve; });\n\n  /* ---------- lengths along the route ---------- */\n  data('len-palisades', 'Palisades Tunnel length (\"the first mile\")', SLIDE14, 5280, 530, 'ft', function () { return AT.hcShaft; });\n  data('len-weehawken', 'Cliff foot to the Weehawken Cove bulkhead (~1,720 ft)', I3, 1720, 260, 'ft', function (c) {\n    let s = 4500; while (c.ground(s) > 20) s += 10;\n    return AT.njBulkhead - s;\n  });\n  data('len-shaft-to-hblr', 'Hudson County Shaft to the light rail (~500 ft, scaled)', I3, 500, 200, 'ft', function () { return AT.hblr1 - AT.hcShaft; });\n  data('len-hrgs', 'Hudson River Ground Stabilization length', 'NJ ACI 2024 slide 11', 1200, 120, 'ft', function (c) { const w = c.work('hrgs'); return w.to - w.from; });\n  data('bulkhead-crosscheck', 'Manhattan bulkhead: OSM shoreline vs Appendix I-2 scaled (12,156 ft)', 'Appendix I-2', 12156, 100, 'ft', function () { return AT.nyBulkhead; });\n  data('order', 'Places in the same order as the drawings', 'Appendix I-2, I-3; NJ ACI slides 14, 16; GDC slide 9', true, null, '', function (c) {\n    const seq = [-377, AT.paterson, AT.jfk, AT.bergenline, AT.palisadeAve, AT.manhattanAve, AT.hcShaft, AT.hblr1, AT.willow, AT.park,\n      AT.njBulkhead, c.work('hrgs').from, AT.nyBulkhead, AT.twelfthAve, AT.twelfthShaft, AT.eleventhAve, AT.tenthAve];\n    return seq.every(function (s, i) { return i === 0 || s > seq[i - 1]; });\n  });\n\n  /* ---------- the river ---------- */\n  data('cover-hrgs', 'Least cover over the tunnel in the stabilized zone (why it is stabilized)', 'FEIS schedule: \"Low Cover Protection (In-River Work by Barge)\"', [0, 20], null, 'ft', function (c) {\n    const w = c.work('hrgs');\n    return Math.min.apply(null, c.range(w.from, w.to, 20, function (s) { return c.ground(s) - c.crown(s); }));\n  });\n  data('cover-river', 'Least cover under the river outside the stabilized zone', 'Appendix I-2 (tunnel well below the riverbed there)', [15, 200], null, 'ft', function (c) {\n    return Math.min.apply(null, c.range(AT.njBulkhead, c.work('hrgs').from, 20, function (s) { return c.ground(s) - c.crown(s); }));\n  });\n  data('channel-depth', 'Deepest riverbed in the navigation channels (40 to 45 ft dredged)', A15, [-65, -40], null, 'ft', function (c) {\n    return Math.min.apply(null, c.range(AT.njBulkhead, AT.nyBulkhead, 25, c.ground));\n  });\n  data('low-point', 'Tunnel low point in the NJ half of the river', 'P1C-GP-5100 profile; Appendix I-2', [AT.njBulkhead, (AT.njBulkhead + AT.nyBulkhead) / 2], null, 'ft', function (c) {\n    let best = AT.njBulkhead; c.range(AT.njBulkhead, AT.nyBulkhead, 50, function (s) { if (c.centre(s) < c.centre(best)) best = s; });\n    return best;\n  });\n  data('rock-nj', 'Rock below low water at the NJ bulkhead (~60 ft)', A15, -60, 20, 'ft', function (c) { return c.rock(AT.njBulkhead); });\n  data('rock-ny', 'Rock below low water at the NY bulkhead (~150 ft)', A15 + '; ' + GDC9, -150, 20, 'ft', function (c) { return c.rock(AT.nyBulkhead); });\n  data('rock-trough', 'Rock trough under the river deeper than 300 ft (to within 10 ft)', A15, [-340, -290], null, 'ft', function (c) {\n    return Math.min.apply(null, c.range(AT.njBulkhead, AT.nyBulkhead, 50, c.rock));\n  });\n\n  /* ---------- rock types where they meet the rock surface, against the state map ---------- */\n  const NJGWS = 'NJ Geological and Water Survey bedrock map, 1:100,000 (data/map-geology.js)';\n  const contact = function (c, id) {\n    // First station where a unit's top reaches the rock surface.\n    const u = c.d('geology').units.find(function (x) { return x.id === id; });\n    const p = u.top.find(function (pt) { return Math.abs(pt[1] - c.rock(pt[0])) < 5; });\n    return p ? p[0] : NaN;\n  };\n  data('geo-diabase-west', 'Palisades diabase reaches the rock surface (west edge)', NJGWS, 300, 200, 'ft', function (c) { return contact(c, 'palisades-sill'); });\n  data('geo-diabase-east', 'Palisades diabase ends at the cliff foot (east edge)', NJGWS, 4950, 200, 'ft', function (c) {\n    const u = c.d('geology').units.find(function (x) { return x.id === 'palisades-sill'; }); return u.top[u.top.length - 1][0];\n  });\n  data('geo-schist', 'Manhattan schist begins under the river', NJGWS, 8600, 250, 'ft', function (c) { return contact(c, 'schist'); });\n\n  data('rock-hcs', 'Rock reached 50 to 60 ft down at the Hudson County Shaft', 'GDC via Construction Dive, 19 Nov 2026', [45, 65], null, 'ft', function (c) {\n    const s = c.work('hudson-county-shaft').station; return c.ground(s) - c.rock(s);\n  });\n\n  /* ---------- the tunnel itself ---------- */\n  data('grade-palisades', 'Palisades downgrade (rail tunnels stay under about 2%)', SLIDE14 + ' (straight line)', [1, 2], null, '%', function (c) { return (c.centre(0) - c.centre(AT.hcShaft)) / AT.hcShaft * 100; });\n  data('xp-palisades', 'Cross passages in the Palisades Tunnel', SLIDE14 + '; GDC slide 14', 6, 0, '', function (c) {\n    return c.work('cross-passages').stations.filter(function (s) { return s > 0 && s < AT.hcShaft; }).length;\n  });\n  // Shafts and the portal are exits too, so they count as breaks in the spacing.\n  data('xp-spacing', 'Widest gap between cross passages or exits (US rule: 800 ft)', 'NFPA 130', [0, 820], null, 'ft', function (c) {\n    const exits = [0, c.work('hudson-county-shaft').station, c.work('twelfth-ave-shaft').station];\n    const st = exits.concat(c.work('cross-passages').stations).sort(function (a, b) { return a - b; });\n    let gap = 0; for (let i = 1; i < st.length; i++) gap = Math.max(gap, st[i] - st[i - 1]);\n    return gap;\n  });\n  data('bore', 'Bore diameter (28 ft 8 in cutterhead)', 'Press, autumn 2026', 28.67, 0.05, 'ft', function (c) { return c.d('alignment').boreDiameter; });\n  data('lining', 'Bore leaves room for the 25 ft 2 in lining and its segments', 'Appendix I-5', [26, 30], null, 'ft', function (c) { return c.d('tbm').machines[0].diameterFt; });\n  data('tbm-length', 'Machine length with trailing gear', 'Press, autumn 2026', 500, 30, 'ft', function (c) { return c.d('tbm').machines[0].lengthFt; });\n\n  /* ---------- buildings ---------- */\n  [['15 Hudson Yards', 914], ['30 Hudson Yards', 1296], ['10 Hudson Yards', 895], ['35 Hudson Yards', 1010],\n    ['50 Hudson Yards', 981], ['55 Hudson Yards', 780], ['The Spiral', 1031]].forEach(function (t) {\n    data('h-' + t[0].toLowerCase().replace(/\\W+/g, '-'), t[0] + ' roof height', SSP, t[1], Math.round(t[1] * 0.04), 'ft', function (c) {\n      const b = c.building(t[0]); return b ? b.height : NaN;\n    });\n  });\n  data('cut-15hy', '15 Hudson Yards stands over the tunnel line (501 W 30th St)', SSP + ' address; Overture footprint', [0, 60], null, 'ft off', function (c) { return c.building('15 Hudson Yards').offset; });\n\n  /* ---------- the drawing: does the page put things where the data says? ---------- */\n  // These read the SVG the page drew and convert back to feet, so they catch mistakes in the scale and the layers.\n  const elevOf = function (TT, y) { return TT.config.extent.elevMax - y / TT.scale.ky; };\n  const pointsOf = function (el) { return el.getAttribute('points').trim().split(/\\s+/).map(function (p) { return p.split(',').map(Number); }); };\n  const nearestY = function (pts, x) { let best = pts[0]; pts.forEach(function (p) { if (Math.abs(p[0] - x) < Math.abs(best[0] - x)) best = p; }); return best[1]; };\n\n  drawn('draw-shape', 'Scene not stretched: same pixels per unit across and down', 'css/app.css, config/scene.js', 1, 0.01, 'ratio', function (c) {\n    const r = c.TT.svg.getBoundingClientRect(), vb = c.TT.svg.viewBox.baseVal;\n    return (r.width / vb.width) / (r.height / vb.height);\n  });\n  drawn('draw-ground', 'Ground line at JFK Blvd drawn at the terrain height', 'terrain.js', 0, 1, 'ft off', function (c) {\n    // The surface line; a look without one still cuts the ground to the same edge.\n    const g = document.querySelectorAll('#tt-layer-geology > polyline'), edge = g[g.length - 1] || document.querySelector('#tt-ground-clip polygon');\n    const s = 703;   // a terrain sample point\n    return elevOf(c.TT, nearestY(pointsOf(edge), c.TT.scale.x(s))) - c.ground(s);\n  });\n  drawn('draw-tunnel', 'Tunnel centre at the Hudson County Shaft drawn at its level', 'alignment.js', 0, 1, 'ft off', function (c) {\n    const line = document.querySelector('#tt-layer-tunnel [data-tube=\"north\"] polyline');\n    return elevOf(c.TT, nearestY(pointsOf(line), c.TT.scale.x(AT.hcShaft))) - c.centre(AT.hcShaft);\n  });\n  drawn('draw-shaft', 'Hudson County Shaft drawn from the ground to its bottom', 'works.js', 0, 1, 'ft off', function (c) {\n    const r = document.querySelector('[data-work=\"hudson-county-shaft\"] rect'), w = c.work('hudson-county-shaft');\n    const top = elevOf(c.TT, +r.getAttribute('y')), bottom = elevOf(c.TT, +r.getAttribute('y') + +r.getAttribute('height'));\n    return Math.max(Math.abs(top - c.ground(w.station)), Math.abs(bottom - w.bottom));\n  });\n  // A building's box, in any look: its picture or outline (a landmark picture may draw past it), else its facade's extent.\n  const buildingBox = function (g) {\n    const e = g.querySelector(':scope > :is(svg, rect)');\n    return e ? { x: +e.getAttribute('x'), y: +e.getAttribute('y'), width: +e.getAttribute('width') } : g.getBBox();\n  };\n  const boxOf = function (name) { return buildingBox(document.querySelector('[data-name=\"' + name + '\"]')); };\n  drawn('draw-15hy', '15 Hudson Yards drawn 914 ft tall', 'buildings.js', 0, 2, 'ft off', function (c) {\n    const v = boxOf('15 Hudson Yards'), b = c.building('15 Hudson Yards');\n    return elevOf(c.TT, v.y) - (b.base + b.height);\n  });\n  // Its footprint reaches across 11th Avenue's place along the route; the cut row stops at the street (layers/buildings.js).\n  drawn('draw-15hy-width', '15 Hudson Yards drawn from 11th Ave to the east end of its footprint', 'buildings.js, roads.js', 0, 2, 'ft off', function (c) {\n    const v = boxOf('15 Hudson Yards'), b = c.building('15 Hudson Yards');\n    const r = c.d('roads').crossings.find(function (x) { return x.name === '11th Avenue'; });\n    const avenueEnd = r.from + r.elements.reduce(function (a, e) { return a + (e.width || 0); }, 0);\n    const x0 = v.x, x1 = x0 + v.width;\n    return Math.max(Math.abs(c.TT.scale.station(x0) - avenueEnd), Math.abs(c.TT.scale.station(x1) - (b.station + b.width / 2)));\n  });\n  drawn('draw-tbm', 'TBM 1 cutting face drawn at its station', 'status.js via feed.js', 0, 2, 'ft off', function (c) {\n    const g = document.querySelector('#tt-layer-tbm [data-machine=\"tbm-1\"] g');\n    const x = +/translate\\(([-\\d.]+)/.exec(g.getAttribute('transform'))[1];\n    return c.TT.scale.station(x) - c.TT.state.machines['tbm-1'].station;\n  });\n  drawn('draw-label', 'JFK Blvd label drawn at the OSM crossing', 'labels.js', 0, 1, 'ft off', function (c) {\n    const t = Array.from(document.querySelectorAll('#tt-layer-labels text')).find(function (e) { return e.textContent === 'JFK Blvd'; });\n    return c.TT.scale.station(+t.getAttribute('x')) - AT.jfk;\n  });\n  drawn('draw-minimap', 'Minimap puts TBM 1 at the same place on the map', 'minimap.js via geo.js', 0, 25, 'ft off', function (c) {\n    const dot = document.querySelector('#tt-minimap-map circle');\n    return c.TT.geo.stationAt(+dot.getAttribute('cx'), -dot.getAttribute('cy')).station - c.TT.state.machines['tbm-1'].station;\n  });\n\n  /* ---------- the page's behaviour, checked in the running page ---------- */\n  // Each one puts the view back as it found it.\n  const keepView = function (TT, fn) {\n    const el = TT.viewport.el, left = el.scrollLeft, top = el.scrollTop;\n    try { return fn(el); } finally { el.scrollLeft = left; el.scrollTop = top; }\n  };\n\n  drawn('ui-fit', 'Fit is on when the page opens', 'src/ui.js, index.html', true, 0, '', function () {\n    return document.getElementById('tt-fit').getAttribute('aria-pressed') === 'true';\n  });\n  drawn('ui-dot', \"Side view's dot sits on the tunnel centre line\", 'src/ui.js marks()', 0, 1, 'ft off', function (c) {\n    const vp = c.TT.viewport, dot = document.querySelector('#tt-marks .tt-centre');\n    const y = (parseFloat(dot.style.top) + vp.el.scrollTop) / vp.pxPerUnit();\n    return elevOf(c.TT, y) - c.centre(vp.range().dot);\n  });\n  drawn('ui-end-east', 'Scrolled to the east stop, the dot is at the last real station', 'src/viewport.js', 0, 1, 'ft off', function (c) {\n    return keepView(c.TT, function (el) { el.scrollLeft = c.TT.viewport.maxLeft(); return c.TT.viewport.range().dot - c.TT.config.extent.stationMax; });\n  });\n  drawn('ui-end-west', 'Scrolled to the west stop, the dot is at the first real station', 'src/viewport.js', 0, 1, 'ft off', function (c) {\n    return keepView(c.TT, function (el) { el.scrollLeft = c.TT.viewport.minLeft(); return c.TT.viewport.range().dot - c.TT.config.extent.stationMin; });\n  });\n  drawn('ui-no-vscroll', 'Nothing scrolls the side view up and down but the code (no vertical swipe, wheel or scrollbar)', 'css/app.css #tt-viewport', 0, 0, 'ways in', function () {\n    const cs = getComputedStyle(document.getElementById('tt-viewport'));\n    return (cs.overflowY === 'hidden' ? 0 : 1) + (cs.touchAction === 'none' ? 0 : 1);\n  });\n  drawn('ui-drag-fit', 'A finger drag carries on from where Fit moved the view, not from where it started', 'src/viewport.js drag', 0, 1, 'px off', function (c) {\n    return keepView(c.TT, function (el) {\n      const pe = function (type, x) { el.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', pointerId: 77, clientX: x, clientY: 300, bubbles: true, cancelable: true })); };\n      c.TT.viewport.goTo(8000, false);\n      pe('pointerdown', 200); pe('pointermove', 190);\n      el.scrollLeft += 300;                      // as Fit does when it zooms\n      const fitLeft = el.scrollLeft;\n      pe('pointermove', 180); pe('pointercancel', 180);\n      return el.scrollLeft - (fitLeft + 10);\n    });\n  });\n  drawn('ui-map-toggle', 'Map and the hide button show and hide the corner map, and never open the big map', 'src/ui.js', 0, 0, 'wrong', function (c) {\n    const mini = document.getElementById('tt-minimap'), btn = document.getElementById('tt-open-map'), was = mini.hidden;\n    let wrong = 0;\n    if (was) btn.click();\n    document.getElementById('tt-map-hide').click();\n    wrong += mini.hidden && btn.getAttribute('aria-expanded') === 'false' ? 0 : 1;\n    btn.click();\n    wrong += !mini.hidden && btn.getAttribute('aria-expanded') === 'true' ? 0 : 1;\n    btn.click();\n    wrong += mini.hidden ? 0 : 1;\n    wrong += c.TT.mapview.stage === 'mini' ? 0 : 1;\n    if (!was) btn.click();\n    return wrong;\n  });\n  drawn('ui-map-info', 'Map info box: Close in its top right corner hides it; on phones it is at most 240 px wide', 'src/mapview.js describe, css/map.css', 0, 0, 'wrong', function (c) {\n    const mv = c.TT.mapview, was = mv.stage, info = document.querySelector('.tt-map-info');\n    if (was === 'mini') mv.setStage('split');\n    mv.describeStation(9000);\n    const box = info.getBoundingClientRect(), x = info.querySelector('.tt-map-info-close'), xr = x && x.getBoundingClientRect();\n    let wrong = 0;\n    wrong += xr && box.right - xr.right < 8 && xr.top - box.top < 8 ? 0 : 1;\n    wrong += innerWidth > 720 || box.width <= 240 ? 0 : 1;\n    if (x) x.click();\n    wrong += info.hidden ? 0 : 1;\n    if (was === 'mini') mv.setStage('mini');\n    return wrong;\n  });\n  drawn('ui-map-south', 'In 2D, a tap finds a plain building north of the route but not one more than 900 ft south', 'src/mapview.js hitTest', 0, 0, 'wrong', function (c) {\n    const mv = c.TT.mapview, was = mv.stage, view = mv.camera().view || 'cut';   // never opened: it opens in Cut\n    mv.setStage('full', '2d');\n    const north = mv.tapBuilding(function (b) { return !b.south && !b.inSideView && b.off > 1200; });\n    const far = mv.tapBuilding(function (b) { return b.south && !b.inSideView && b.off > 1200; });\n    mv.setStage(was === 'mini' ? 'split' : was, view);\n    if (was === 'mini') mv.setStage('mini');\n    return (north === true ? 0 : 1) + (far === false ? 0 : 1);\n  });\n  drawn('ui-street-gaps', 'No building in the cut is drawn over a street', 'layers/buildings.js', 0, 0, 'overlaps', function (c) {\n    // Each street's place along the route from the roads data (a drawn bridge picture can reach past its street).\n    const roads = c.d('roads').crossings.map(function (r) {\n      const w = r.elements.reduce(function (a, e) { return a + (e.width || 0); }, 0);\n      return [c.TT.scale.x(r.from), c.TT.scale.x(r.from + w)];\n    });\n    let n = 0;\n    // Each building's box, whatever draws it.\n    document.querySelectorAll('#tt-layer-buildings g[data-row=\"0\"] [data-building]').forEach(function (e) {\n      const b = buildingBox(e), x0 = b.x, x1 = x0 + b.width;\n      roads.forEach(function (r) { if (Math.min(x1, r[1]) - Math.max(x0, r[0]) > 1) n++; });\n    });\n    return n;\n  });\n  drawn('draw-trees', 'Every tree from the canopy height map is drawn, at its height, in its row', 'layers/trees.js, trees-behind.js, trees.js', 0, 0, 'wrong', function (c) {\n    // Row 1 is drawn first (behind the buildings), then row 0; both west to east.\n    const all = c.d('trees').list, list = all.filter(function (t) { return t.row === 1; }).concat(all.filter(function (t) { return !t.row; }));\n    const drawnTrees = document.querySelectorAll('#tt-layer-trees-behind [data-tree], #tt-layer-trees [data-tree]');\n    let wrong = Math.abs(drawnTrees.length - list.length);\n    drawnTrees.forEach(function (g, i) {\n      const e = g.querySelector('svg, ellipse'), t = list[i];\n      const top = e.tagName === 'svg' ? +e.getAttribute('y') : +e.getAttribute('cy') - +e.getAttribute('ry');\n      if (Math.abs(elevOf(c.TT, top) - (c.ground(t.station) + t.height)) > 2) wrong++;\n    });\n    return wrong;\n  });\n  // Layers drawn in Sketch, the base look: every shape is a sprite picture or is filled or painted from a sprite tile.\n  // Left out on purpose: the labels and contracts layers, whose lines and tag boxes go with their text.\n  drawn('draw-sprites', 'Sketch: every shape in the side view comes from a sprite sheet, except label and contract lines', 'layers/*.js, themes/sketch.js', 0, 0, 'shapes', function (c) {\n    const TT = c.TT, was = TT.state.theme;\n    let n = 0;\n    // known: Survey draws trees, machines, road cross-sections and outlines as plain lines (about 1,300 shapes).\n    [TT.config.baseTheme].forEach(function (look) {\n      if (TT.state.theme !== look) TT.setTheme(look);\n      document.querySelectorAll('.tt-layer:not([data-layer=\"labels\"]):not([data-layer=\"contracts\"])').forEach(function (layer) {\n        layer.querySelectorAll('rect, polygon, polyline, path, line, ellipse, circle').forEach(function (e) {\n          if (e.closest('svg') !== TT.svg || e.closest('pattern, clipPath, defs')) return;   // inside a sprite, or not drawn itself\n          if (!/url\\(/.test((e.getAttribute('fill') || '') + (e.getAttribute('stroke') || ''))) n++;\n        });\n      });\n    });\n    if (TT.state.theme !== was) TT.setTheme(was);\n    return n;\n  });\n  drawn('ui-penn-inset','Penn Station close-up: shows all its levels under the station, stays up to the far right end, hides west of it, × hides it until you leave', 'src/station-inset.js', 0, 0, 'wrong', function (c) {\n    const box = document.getElementById('tt-station-inset'), si = c.TT.stationInset;\n    return keepView(c.TT, function () {\n      let wrong = 0;\n      c.TT.viewport.goTo(16300, false); si.update();\n      wrong += !box.hidden && box.querySelectorAll('[data-level]').length === c.d('station').levels.length ? 0 : 1;\n      box.querySelector('button').click();\n      wrong += box.hidden ? 0 : 1;\n      c.TT.viewport.goTo(9000, false); si.update();\n      wrong += box.hidden ? 0 : 1;\n      c.TT.viewport.goTo(16300, false); si.update();\n      wrong += box.hidden ? 1 : 0;\n      c.TT.viewport.goTo(c.TT.config.extent.stationMax, false); si.update();   // the route ends here: stays up\n      wrong += box.hidden ? 1 : 0;\n      return wrong;\n    });\n  });\n  drawn('ui-layers-over-dock', 'The map\\u2019s Layers panel, while open, sits over the dock (TBM info, Fit)', 'css/map.css', 0, 0, 'wrong', function (c) {\n    const mv = c.TT.mapview, was = mv.stage;\n    if (was === 'mini') mv.setStage('split');\n    const layers = document.querySelector('#tt-map .tt-map-layers'), z = function (id) { return +getComputedStyle(document.getElementById(id)).zIndex || 0; };\n    layers.open = true;\n    const wrong = z('tt-map') > z('tt-dock') ? 0 : 1;\n    layers.open = false;\n    if (was === 'mini') mv.setStage('mini');\n    return wrong;\n  });\n  drawn('ui-styles-close', 'Styles and data: no arrow, the title does not close it, \\u00d7 does', 'src/ui.js, css/app.css', 0, 0, 'wrong', function () {\n    const panel = document.getElementById('tt-panel'), summary = panel.querySelector('summary');\n    let wrong = 0;\n    document.getElementById('tt-open-styles').click();\n    wrong += getComputedStyle(summary).listStyleType === 'none' ? 0 : 1;\n    summary.click();\n    wrong += panel.open && !panel.hidden ? 0 : 1;\n    document.getElementById('tt-panel-close').click();\n    wrong += !panel.open ? 0 : 1;\n    return wrong;\n  });\n  drawn('ui-map-heights', 'Map Layers: heights are a 1\\u00d7 / 2\\u00d7 / 4\\u00d7 toggle, and the key starts open', 'src/mapview.js', 0, 0, 'wrong', function (c) {\n    const mv = c.TT.mapview, was = mv.stage;\n    if (was === 'mini') mv.setStage('split');\n    const b = Array.prototype.slice.call(document.querySelectorAll('#tt-map [data-vz]'));\n    let wrong = b.map(function (x) { return x.textContent; }).join(' ') === '1\\u00d7 2\\u00d7 4\\u00d7' ? 0 : 1;\n    wrong += document.querySelector('#tt-map .tt-map-legend').open ? 0 : 1;\n    b[2].click();\n    wrong += mv.camera().vz === 4 && b[2].getAttribute('aria-pressed') === 'true' && b[0].getAttribute('aria-pressed') === 'false' ? 0 : 1;\n    b[0].click();\n    wrong += mv.camera().vz === 1 ? 0 : 1;\n    if (was === 'mini') mv.setStage('mini');\n    return wrong;\n  });\n  drawn('ui-map-cut-default', 'The map opens in Cut, aimed at the wall', 'src/mapview.js DEFAULT_VIEW', 0, 0, 'wrong', function (c) {\n    const mv = c.TT.mapview, was = mv.stage;\n    if (!mv.openedIn) { mv.setStage('split'); mv.setStage(was); }   // not opened yet this visit: open it once\n    const first = mv.openedIn;\n    return (first.view === 'cut' ? 0 : 1) + (first.track === 'face' ? 0 : 1);\n  });\n  drawn('ui-map-dot-depth', 'In 3D the map\\u2019s dot sits on the tunnel centre line, not the ground', 'src/mapview.js centreAt', 0, 0, 'wrong', function (c) {\n    const mv = c.TT.mapview, was = mv.stage, view = mv.camera().view || 'cut';\n    mv.setStage('full', 'cut');\n    const p = mv.dotCheck(), d = function (a, b) { return Math.hypot(a[0] - b[0], a[1] - b[1]); };\n    mv.setStage('full', view);\n    mv.setStage(was);\n    // On the centre line, and visibly away from the ground (the tunnel is tens of feet down everywhere).\n    return (d(p.dot, p.centre) < 1 ? 0 : 1) + (d(p.dot, p.ground) > 3 ? 0 : 1);\n  });\n  drawn('ui-goto', 'Going to a station puts the dot on it', 'src/viewport.js goTo', 0, 5, 'ft off', function (c) {\n    return keepView(c.TT, function () { c.TT.viewport.goTo(9000, false); return c.TT.viewport.range().dot - 9000; });\n  });\n  drawn('ui-map-full', 'Expanded map takes about 3/4 of the page and the side view keeps the rest', 'css/map.css', [0.7, 0.8], 0, 'of the page', function (c) {\n    return keepView(c.TT, function () {\n      const was = c.TT.mapview.stage;\n      try {\n        c.TT.mapview.setStage('full');\n        const m = document.getElementById('tt-map').getBoundingClientRect(), v = c.TT.viewport.el.getBoundingClientRect();\n        if (!(v.width > 50 && v.height > 50)) return 0;\n        const wide = m.height > window.innerHeight * 0.9;   // beside the side view on wide screens, below it on phones\n        return wide ? m.width / window.innerWidth : m.height / window.innerHeight;\n      } finally { c.TT.mapview.setStage(was); }\n    });\n  });\n  drawn('ui-cut-south', 'Cut never turns past the south side (within 90° of square to the route)', 'src/mapview.js clampYaw', [0, 90.5], 0, '° off square', function (c) {\n    return keepView(c.TT, function () {\n      const mv = c.TT.mapview, was = mv.stage, map = document.getElementById('tt-map');\n      let view = null;\n      try {\n        mv.setStage('full');\n        view = mv.camera().view;\n        mv.setStage('full', 'cut');\n        let worst = 0;\n        ['e', 'q'].forEach(function (key) {\n          for (let i = 0; i < 40; i++) map.dispatchEvent(new KeyboardEvent('keydown', { key: key, bubbles: true }));\n          const face = (c.TT.geo.at(c.TT.viewport.range().dot).bearing - 90) * Math.PI / 180, d = mv.camera().yaw - face;\n          worst = Math.max(worst, Math.abs(Math.atan2(Math.sin(d), Math.cos(d))) * 180 / Math.PI);\n        });\n        return worst;\n      } finally { if (view) mv.setStage('full', view); mv.setStage(was); }\n    });\n  });\n\n  drawn('ui-status-keeps', 'TBM info: its buttons stay the same through a feed tick, so keyboard focus and clicks are not lost', 'src/ui.js renderStatus', 0, 0, 'wrong', function (c) {\n    const before = Array.prototype.slice.call(document.querySelectorAll('#tt-status button'));\n    c.TT.feed.tick();\n    const after = document.querySelectorAll('#tt-status button');\n    return (before.length && before.length === after.length ? 0 : 1) + before.filter(function (b, i) { return b !== after[i]; }).length;\n  });\n  drawn('ui-drag-hold', 'Drag machines: one pointer holds one machine, a second cannot take it, turning the mode off lets go', 'src/drag.js', 0, 0, 'wrong', function (c) {\n    const TT = c.TT, mode = TT.drag.mode, was = TT.state.dragMode;\n    const pe = function (type, id) {\n      const g = TT.svg.querySelector('[data-machine=\"' + first.id + '\"]'), r = g.getBoundingClientRect();\n      g.dispatchEvent(new PointerEvent(type, { pointerId: id, pointerType: 'touch', clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true, cancelable: true }));\n    };\n    let first = null;\n    return keepView(TT, function () {\n      let wrong = 0;\n      if (!was) TT.drag.set(true);\n      first = TT.machines()[0];\n      TT.viewport.goTo(first.station, false);\n      pe('pointerdown', 61);\n      wrong += TT.state.holding === first.id ? 0 : 1;\n      pe('pointerdown', 62); pe('pointercancel', 62);   // a second finger (it pans the side view instead)\n      wrong += mode.is('holding') && mode.data.pointerId === 61 ? 0 : 1;\n      TT.drag.set(false);\n      wrong += TT.state.holding === null && mode.is('off') ? 0 : 1;\n      TT.drag.set(true);\n      pe('pointerdown', 63);\n      wrong += TT.state.holding === first.id ? 0 : 1;\n      pe('pointerup', 63);\n      wrong += mode.is('ready') ? 0 : 1;\n      if (!was) TT.drag.set(false);\n      return wrong;\n    });\n  });\n  drawn('ui-lost-mouseup', 'Side view and map: a mouse moving with no button down ends a drag whose release never came (a Mac context menu)', 'src/core.js TT.released', 0, 0, 'wrong', function (c) {\n    const TT = c.TT, mv = TT.mapview, stage = mv.stage;\n    const pe = function (el, type, x, y, buttons) {\n      el.dispatchEvent(new PointerEvent(type, { pointerType: 'mouse', pointerId: 1, button: 0, buttons: buttons, clientX: x, clientY: y, bubbles: true, cancelable: true }));\n    };\n    return keepView(TT, function () {\n      let wrong = 0;\n      const el = TT.viewport.el;\n      TT.viewport.goTo(8000, false);\n      pe(el, 'pointerdown', 200, 300, 1);\n      const left = el.scrollLeft;\n      pe(el, 'pointermove', 100, 300, 0);\n      wrong += TT.fsms['side-view pointer'].is('idle') && Math.abs(el.scrollLeft - left) < 1 ? 0 : 1;\n      if (stage === 'mini') mv.setStage('split');\n      const cv = document.querySelector('#tt-map canvas'), r = cv.getBoundingClientRect(), cam = mv.camera();\n      pe(cv, 'pointerdown', r.left + r.width / 3, r.top + r.height / 3, 1);\n      pe(cv, 'pointermove', r.left + r.width / 2, r.top + r.height / 2, 0);\n      const now = mv.camera();\n      wrong += TT.fsms['map gesture'].is('idle') && now.cx === cam.cx && now.cy === cam.cy && now.yaw === cam.yaw ? 0 : 1;\n      if (stage === 'mini') mv.setStage('mini');\n      return wrong;\n    });\n  });\n\n  // Last, as it redraws the scene: the checks above measure the look the page opened in.\n  // The picture is its own GPU layer, so Fit's easing zoom and drags move what is already drawn. Without it Chrome\n  // redrew every tile on screen at each step (7-9x the raster work, measured) and showed blank frames while dragging.\n  drawn('ui-gpu-layer', 'Side view: the picture is its own GPU layer, so dragging and Fit do not repaint it', 'css/app.css', 0, 0, 'wrong', function (c) {\n    return getComputedStyle(c.TT.svg).willChange.indexOf('transform') >= 0 ? 0 : 1;\n  });\n  drawn('ui-looks', 'Styles and data: a button per look, opening in Sketch; pressing one restyles the drawing and shows as pressed', 'src/ui.js, index.html', 0, 0, 'wrong', function (c) {\n    const TT = c.TT, was = TT.state.theme, buttons = Array.prototype.slice.call(document.querySelectorAll('#tt-looks button'));\n    const sky = function () { const r = document.querySelector('#tt-layer-sky rect'); return r && r.getAttribute('fill') + (TT.styleFor('sky').fill || ''); };\n    let wrong = buttons.length === Object.keys(TT.themes).length ? 0 : 1;\n    // Without ?theme the page opens in the default look (config defaultTheme).\n    if (!new URLSearchParams(location.search).get('theme') && was !== TT.config.defaultTheme) wrong++;\n    buttons.forEach(function (b) {\n      if (b.value === was) return;\n      const before = sky();\n      b.click();\n      wrong += TT.state.theme === b.value && b.getAttribute('aria-pressed') === 'true' ? 0 : 1;\n      wrong += document.querySelector('#tt-layer-geology').getAttribute('data-theme') === b.value && sky() !== before ? 0 : 1;\n      wrong += buttons.filter(function (x) { return x.getAttribute('aria-pressed') === 'true'; }).length === 1 ? 0 : 1;\n    });\n    buttons.find(function (b) { return b.value === was; }).click();\n    return wrong + (TT.state.theme === was ? 0 : 1);\n  });\n\n  /* ---------- the state machines (TT.fsm in src/core.js), checked the way TLC checks a TLA+ spec ---------- */\n\n  /*\n   * A random walk of the real page. The environment is a person with a mouse and two fingers. Each step picks one\n   * enabled action at random (press, move, release, cancel, a release a context menu eats, a click on a visible\n   * control, a scroll, a map stage), fires it as real events, lets a frame pass ('tt:view'), then checks every\n   * machine's invariants. At the end the person lets go of everything and moves the mouse over wherever it was\n   * lost: every pointer machine must be back at rest (the liveness half: nothing sticks).\n   * Same seed, same walk: TT.verify.simulate(TT, seed, steps) replays one. A failure names the seed, the step,\n   * the broken invariant and the steps that led there. Puts the page back as it found it.\n   */\n  function simulate(TT, seed, steps) {\n    let r = seed >>> 0;\n    const rand = function () {   // mulberry32: small, seeded, good enough to pick actions\n      r = (r + 0x6D2B79F5) >>> 0;\n      let t = Math.imul(r ^ (r >>> 15), r | 1);\n      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);\n      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;\n    };\n    const pick = function (a) { return a[Math.floor(rand() * a.length)]; };\n    const $ = function (id) { return document.getElementById(id); };\n    const all = function (sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); };\n    const shown = function (el) { return !!el && el.getClientRects().length > 0; };\n    const vp = TT.viewport.el, mv = TT.mapview, ext = TT.config.extent, fit = $('tt-fit');\n    const name = function (el) { return el === document.body ? 'page' : el.id || el.getAttribute('data-machine') || el.getAttribute('aria-label') || el.tagName.toLowerCase(); };\n    const POINTERS = [{ id: 1, type: 'mouse' }, { id: 21, type: 'touch' }, { id: 22, type: 'touch' }];\n    const down = {}, lost = [], trace = [];   // what the person is pressing, and where the mouse lost a release\n    // Pointer capture as the browser does it (synthetic pointers cannot really capture): after setPointerCapture,\n    // a pointer's moves and releases go to that element, and lostpointercapture follows its release.\n    const cap = {}, proto = Element.prototype;\n    const native = { set: proto.setPointerCapture, release: proto.releasePointerCapture, has: proto.hasPointerCapture };\n    proto.setPointerCapture = function (id) { cap[id] = this; };\n    proto.releasePointerCapture = function (id) { if (cap[id] === this) delete cap[id]; };\n    proto.hasPointerCapture = function (id) { return cap[id] === this; };\n    const to = function (p) { return cap[p.id] || down[p.id]; };\n    const end = function (p, type) {\n      const el = to(p);\n      delete down[p.id];\n      send(el, type, p);\n      if (cap[p.id]) { const c = cap[p.id]; delete cap[p.id]; send(c, 'lostpointercapture', p); }\n      return type.replace('pointer', '') + ' ' + p.type + p.id;\n    };\n    const refused = function () { return Object.keys(TT.fsms).reduce(function (n, k) { return n + TT.fsms[k].refused; }, 0); };\n    const saved = { stage: mv.stage, fit: fit.getAttribute('aria-pressed'), mini: $('tt-minimap').hidden, left: vp.scrollLeft, refused: refused() };\n\n    const send = function (el, type, p, extra) {\n      const b = el.getBoundingClientRect();\n      el.dispatchEvent(new PointerEvent(type, Object.assign({\n        pointerId: p.id, pointerType: p.type, isPrimary: true, bubbles: true, cancelable: true, button: 0, buttons: down[p.id] ? 1 : 0,\n        clientX: b.left + rand() * b.width, clientY: b.top + rand() * b.height\n      }, extra)));\n    };\n    const targets = function () {\n      return [vp].concat(all('#tt-scene [data-machine]'), all('#tt-dragbar .tt-handle').filter(shown), all('#tt-map canvas').filter(shown));\n    };\n    const free = function () { return POINTERS.filter(function (p) { return !down[p.id]; }); };\n    const held = function () { return POINTERS.filter(function (p) { return down[p.id]; }); };\n    const controls = function () {\n      return ['tt-menu-btn', 'tt-tbm-btn', 'tt-open-map', 'tt-map-hide', 'tt-drag', 'tt-dragbar-reset', 'tt-dragbar-done']\n        .map($).concat(all('#tt-station-inset button'), [document.body]).filter(function (el) { return el === document.body || shown(el); });\n    };\n\n    // [weight, enabled, act]; act returns what it did, for the trace.\n    const ACTIONS = [\n      [6, function () { return free().length; }, function () {\n        const p = pick(free()), el = pick(targets()), right = p.type === 'mouse' && rand() < 0.15;\n        down[p.id] = el;\n        send(el, 'pointerdown', p, right ? { button: 2, buttons: 2 } : { buttons: 1 });\n        return 'press ' + p.type + p.id + ' on ' + name(el) + (right ? ' (right button)' : '');\n      }],\n      [8, function () { return held().length; }, function () { const p = pick(held()); send(to(p), 'pointermove', p); return 'move ' + p.type + p.id; }],\n      [4, function () { return held().length; }, function () { return end(pick(held()), 'pointerup'); }],\n      [1, function () { return held().some(function (p) { return p.type === 'touch'; }); }, function () {\n        return end(pick(held().filter(function (q) { return q.type === 'touch'; })), 'pointercancel');\n      }],\n      // Nothing is sent and the capture stays: the page next hears of the mouse when it moves, with no button down.\n      [1, function () { return down[1]; }, function () { lost.push(to(POINTERS[0])); delete down[1]; return 'a context menu eats the mouse release'; }],\n      [2, function () { return !down[1]; }, function () { const el = cap[1] || pick(targets()); send(el, 'pointermove', POINTERS[0]); return 'mouse hovers ' + name(el); }],\n      [4, function () { return true; }, function () { const el = pick(controls()); el.click(); return 'click ' + name(el); }],\n      [0.3, function () { return true; }, function () { fit.click(); return 'click tt-fit'; }],   // rare: turning Fit off redraws the scene\n      [2, function () { return true; }, function () { const s = ext.stationMin + rand() * (ext.stationMax - ext.stationMin); TT.viewport.goTo(s, false); return 'scroll to ' + Math.round(s); }],\n      [1, function () { return true; }, function () { vp.dispatchEvent(new WheelEvent('wheel', { deltaY: (rand() - 0.5) * 400, bubbles: true, cancelable: true })); return 'wheel'; }],\n      [1, function () { return true; }, function () { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return 'Escape'; }],\n      [0.5, function () { return true; }, function () { const st = pick(['mini', 'split', 'full']); mv.setStage(st); return 'map stage ' + st; }]\n    ];\n\n    const check = function (when) {\n      const bad = [];\n      Object.keys(TT.fsms).forEach(function (k) { TT.fsms[k].broken().forEach(function (inv) { bad.push(k + ': \"' + inv + '\"'); }); });\n      if (refused() > saved.refused) bad.push('a move outside the listed edges (see the console)');\n      if (bad.length) throw new Error('seed ' + seed + ', ' + when + ': ' + bad.join('; ') + '. Steps: ' + trace.slice(-8).join(' / '));\n    };\n    const frame = function () { document.dispatchEvent(new CustomEvent('tt:view')); };\n\n    try {\n      for (let i = 0; i < steps; i++) {\n        const live = ACTIONS.filter(function (a) { return a[1](); });\n        let w = rand() * live.reduce(function (n, a) { return n + a[0]; }, 0), a = live[0];\n        for (let j = 0; j < live.length; j++) { w -= live[j][0]; if (w <= 0) { a = live[j]; break; } }\n        trace.push(a[2]());\n        frame();\n        check('step ' + (i + 1));\n      }\n      // Let go of everything; the mouse passes over wherever it lost a release; any fling is stopped by a wheel.\n      held().forEach(function (p) { trace.push(end(p, 'pointerup')); });\n      lost.forEach(function (el) { send(el, 'pointermove', POINTERS[0]); trace.push('mouse hovers ' + name(el)); });\n      vp.dispatchEvent(new WheelEvent('wheel', { ctrlKey: true, bubbles: true, cancelable: true }));\n      frame();\n      check('after letting go');\n      const rest = { 'side-view pointer': ['idle'], 'map gesture': ['idle'], 'machine drag': ['off', 'ready'] };\n      Object.keys(rest).forEach(function (k) {\n        if (rest[k].indexOf(TT.fsms[k].state) < 0) throw new Error('seed ' + seed + ': ' + k + ' stuck in ' + TT.fsms[k].state + ' after letting go. Steps: ' + trace.slice(-8).join(' / '));\n      });\n      return trace.length;\n    } finally {\n      proto.setPointerCapture = native.set; proto.releasePointerCapture = native.release; proto.hasPointerCapture = native.has;\n      if (TT.state.dragMode) $('tt-dragbar-done').click();\n      TT.ui.closePopovers();\n      mv.setStage(saved.stage);\n      if (fit.getAttribute('aria-pressed') !== saved.fit) fit.click();\n      if ($('tt-minimap').hidden !== saved.mini) $('tt-open-map').click();\n      vp.scrollLeft = saved.left;\n      frame();\n    }\n  }\n\n  drawn('fsm-simulate', 'State machines: random walks of the real page (seeds 1 to 4, 150 steps each) keep every invariant and come back to rest', 'src/core.js TT.fsm', 0, 0, 'walks failed', function (c) {\n    [1, 2, 3, 4].forEach(function (seed) { simulate(c.TT, seed, 150); });   // throws, with the trace, on the first failure\n    return 0;\n  });\n  // After every other check, which change modes on purpose.\n  drawn('fsm-spec', 'State machines (TT.fsms): every invariant holds now, and no move went outside its listed edges', 'src/core.js TT.fsm', 0, 0, 'wrong', function (c) {\n    const all = c.TT.fsms;\n    return Object.keys(all).reduce(function (n, k) { return n + all[k].refused + all[k].broken().length; }, 0);\n  });\n\n  /* ---------- running ---------- */\n\n  function check(f, c) {\n    let value, pass;\n    try { value = f.measure(c); } catch (err) { return { f: f, value: NaN, pass: false, error: String(err.message || err) }; }\n    if (f.expect === true) pass = value === true;\n    else if (Array.isArray(f.expect)) pass = value >= f.expect[0] && value <= f.expect[1];\n    else pass = Math.abs(value - f.expect) <= f.tol;\n    return { f: f, value: value, pass: pass };\n  }\n\n  function run(TT, kinds) {\n    const c = context(TT);\n    return facts.filter(function (f) { return kinds.indexOf(f.kind) >= 0; }).map(function (f) { return check(f, c); });\n  }\n\n  const show = function (v) { return typeof v === 'number' ? (Math.abs(v) >= 100 ? Math.round(v) : +v.toFixed(2)) : String(v); };\n  const expected = function (f) {\n    return f.expect === true ? 'true' : Array.isArray(f.expect) ? f.expect[0] + ' to ' + f.expect[1] : f.expect + ' ± ' + f.tol;\n  };\n\n  const api = { facts: facts, run: run, show: show, expected: expected, simulate: simulate };\n  if (typeof module !== 'undefined' && module.exports) { module.exports = api; return; }\n\n  // In the page (index.html?verify): run everything once the scene is drawn and the feed has ticked, show a panel.\n  root.TT.verify = api;\n  setTimeout(function () {\n    const results = run(root.TT, ['data', 'drawn']);\n    const failed = results.filter(function (r) { return !r.pass; }).length;\n    const panel = document.createElement('section');\n    panel.id = 'tt-verify';\n    panel.setAttribute('aria-label', 'Dimension checks');\n    panel.innerHTML = '<h2>Dimension checks: ' + (results.length - failed) + ' of ' + results.length + ' pass<\/h2>' +\n      '<table><thead><tr><th><\/th><th>Check<\/th><th>Measured<\/th><th>Expected<\/th><th>Source<\/th><\/tr><\/thead><tbody>' +\n      results.map(function (r) {\n        return '<tr class=\"' + (r.pass ? 'ok' : 'bad') + '\"><td>' + (r.pass ? '✓' : '✗') + '<\/td><td>' + r.f.what + (r.f.kind === 'drawn' ? ' <em>(drawn)<\/em>' : '') +\n          '<\/td><td>' + (r.error ? r.error : show(r.value) + ' ' + r.f.units) + '<\/td><td>' + expected(r.f) + '<\/td><td>' + r.f.source + '<\/td><\/tr>';\n      }).join('') + '<\/tbody><\/table>';\n    document.body.appendChild(panel);\n    console.table(results.map(function (r) { return { pass: r.pass, check: r.f.id, measured: r.error || show(r.value), expected: expected(r.f) }; }));\n  }, 1500);\n})(typeof window !== 'undefined' ? window : globalThis);\n";
       document.body.appendChild(s);
     }
 
