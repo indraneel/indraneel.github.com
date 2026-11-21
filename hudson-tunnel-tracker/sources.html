@@ -296,6 +296,16 @@ h1 { font-family: var(--font-draft); }
         <dt>Used for</dt><dd>Hudson Yards tower heights (10, 15, 30, 35, 50, 55 Hudson Yards and The Spiral): tower sprites and the height checks in <code>tools/facts.js</code></dd>
       </dl>
     </details>
+    <details class="source">
+      <summary><h3>SunCalc</h3></summary>
+      <p>The low-precision sun and moon formulas the sky uses (after Meeus, <i>Astronomical Algorithms</i>). The page works out where the sun and moon are from your computer's clock, good to about a degree. Written from memory; the page was not read on 21 Nov 2026.</p>
+      <dl class="facts">
+        <dt>Publisher</dt><dd>Vladimir Agafonkin</dd>
+        <dt>Link</dt><dd><a href="https://github.com/mourner/suncalc">github.com/mourner/suncalc</a></dd>
+        <dt>Licence</dt><dd>BSD-2-Clause; formulas only, no code copied</dd>
+        <dt>Used for</dt><dd>Day, sunset and night in the sky, with the sun, moon and its phase: <code>src/daylight.js</code>. Checked in <code>tools/check.js</code> against the solstices, a sunset and two eclipses.</dd>
+      </dl>
+    </details>
   </details>
 
   <details class="group" open>
