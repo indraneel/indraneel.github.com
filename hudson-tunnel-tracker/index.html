@@ -92,8 +92,9 @@ html, body {
 .tt-range::after { right: 0; }
 .tt-range i { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; border-radius: 50%; background: var(--tt-range); transform: translate(-50%, -50%); }
 .tt-range span {
-  position: absolute; top: 7px; font: 600 10px/1 var(--tt-font); color: var(--tt-range);
-  text-shadow: 0 0 2px var(--tt-panel), 0 0 2px var(--tt-panel), 0 0 2px var(--tt-panel);
+  /* On a panel tag, not a glow: the sky behind runs light blue to near black, and no one text colour reads on both. */
+  position: absolute; top: 7px; padding: 2px 4px; border-radius: 3px; font: 600 10px/1 var(--tt-font);
+  color: var(--tt-range); background: var(--tt-panel);
 }
 #tt-range-from { left: 4px; }
 #tt-range-to { right: 4px; }
