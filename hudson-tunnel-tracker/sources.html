@@ -91,6 +91,11 @@ footer { margin-top: 3em; font-size: 0.9rem; color: var(--muted); }
 
 h1 { font-family: var(--font-draft); }
 
+/* The position log: a plain table that scrolls sideways on a phone instead of squeezing. */
+.log { overflow-x: auto; margin: 0.6em 0; }
+.log table { border-collapse: collapse; min-width: 640px; width: 100%; font-size: 0.9rem; }
+.log :is(th, td) { text-align: left; vertical-align: top; padding: 6px 10px 6px 0; border-bottom: 1px solid color-mix(in srgb, currentColor 18%, transparent); }
+
 </style>
 </head>
 <body>
@@ -316,7 +321,7 @@ h1 { font-family: var(--font-draft); }
     <section class="source">
       <dl class="facts">
         <dt>19 Nov 2026</dt><dd><a href="https://www.constructiondive.com/news/hudson-tunnel-project-second-tunnel-boring-machine/875255/">$16B Hudson Tunnel project launches second tunnel boring machine</a> &middot; Construction Dive, quoting a GDC release of 18 Nov. <strong>Machine positions</strong> (TBM 1 about 400 ft into the north tube, TBM 2 just launched in the south tube), rock reached 50&ndash;60 ft down at the Hudson County Shaft, river boring in 2028. Used by <code>status.js</code>, <code>tbm.js</code>, <code>geology.js</code>.</dd>
-        <dt>28 Sep 2026</dt><dd><a href="https://www.governor.ny.gov/news/governor-hochul-celebrates-start-tunnel-boring-gateway-hudson-tunnel-project">Governor Hochul celebrates start of tunnel boring</a> &middot; NY Governor's office. Ceremonial start, about 30 ft a day, Palisades contractor.</dd>
+        <dt>28 Sep 2026</dt><dd><a href="https://www.governor.ny.gov/news/governor-hochul-celebrates-start-tunnel-boring-gateway-hudson-tunnel-project">Governor Hochul celebrates start of tunnel boring</a> &middot; NY Governor's office. Ceremonial start, Palisades contractor, and the planned pace: &ldquo;roughly 30 feet of tunnel per day, including scheduled pauses for maintenance&rdquo;. <strong>How the machines move between reports:</strong> from each machine's last reported position, the page moves it on 30 ft a day, all the time, until a newer report or the end of its drive. That is an estimate, and the page marks it &ldquo;est&rdquo;. Used by <code>status.js</code>. The release also says the drive takes about a year; 30 ft a day would finish it in about six months.</dd>
         <dt>28 Sep 2026</dt><dd><a href="https://www.6sqft.com/tunnel-boring-for-16b-hudson-river-tunnel-project-begins/">Tunnel boring for $16B Hudson River tunnel project begins</a> &middot; 6sqft. Start date, first and second machine.</dd>
         <dt>29 Sep 2026</dt><dd><a href="https://www.constructiondive.com/news/hudson-tunnel-project-begins-boring/831600/">$16B Hudson Tunnel Project begins boring</a> &middot; Construction Dive.</dd>
         <dt>20 Aug 2025</dt><dd><a href="https://www.constructionbriefing.com/tunnelling/news/images-new-york-new-jersey-hudson-tunnel-tbms-nearly-assembled/8083751.article">Hudson tunnel TBMs nearly assembled</a> &middot; Construction Briefing. Machine size, advance rate, launch shaft.</dd>
@@ -325,6 +330,18 @@ h1 { font-family: var(--font-draft); }
         <dt>30 Sep 2026</dt><dd><a href="https://www.masstransitmag.com/rail/infrastructure/news/55408668/gateway-program-tunnel-boring-begins-on-hudson-tunnel-project">Tunnel boring begins on Hudson Tunnel Project</a> (and, 18 Feb 2025, <a href="https://www.masstransitmag.com/rail/infrastructure/article/55262574/hudson-tunnel-project-on-track-to-be-completed-by-2035">on track to be completed by 2035</a>) &middot; Mass Transit. Service date.</dd>
         <dt>&nbsp;</dt><dd><a href="https://www.gatewayprogram.org/">gatewayprogram.org</a> &middot; Gateway Development Commission. Project pages and updates.</dd>
       </dl>
+      <h3 id="position-log">Machine positions: stated against calculated</h3>
+      <p>Between reports the page moves each machine on from its last stated position at 30 ft a day. When a new report gives a position, the machine snaps to it. This log keeps what the page had calculated for that day next to what the report stated. Feet are from the Tonnelle Avenue portal; a plus difference means the page was ahead of the real machine.</p>
+      <!-- The same rows as the log in SOURCES.md, newest last; tools/check.js counts them. -->
+      <div class="log"><table>
+        <thead><tr><th>Report date</th><th>Machine</th><th>Stated</th><th>Source</th><th>Calculated for that date</th><th>Difference</th><th>Used?</th></tr></thead>
+        <tbody>
+          <tr><td>16 Nov 2026</td><td>TBM 1 (north)</td><td>&ldquo;about 50 ft or so&rdquo;</td><td>northjersey.com video captions</td><td>none: no earlier position</td><td>n/a</td><td>No. Disagrees with GDC two days later; read from auto-captions only</td></tr>
+          <tr><td>16 Nov 2026</td><td>TBM 2 (south)</td><td>about 30 ft</td><td>northjersey.com video</td><td>none: first report</td><td>n/a</td><td>Yes</td></tr>
+          <tr><td>18 Nov 2026</td><td>TBM 1 (north)</td><td>about 400 ft, 60+ rings</td><td>GDC release (Construction Dive, 19 Nov)</td><td>none: first report</td><td>n/a</td><td>Yes</td></tr>
+        </tbody>
+      </table></div>
+      <p class="note">Calculated since, not stated by anyone: on 22 Nov 2026 the page showed TBM 1 at about 529 ft and TBM 2 at about 219 ft.</p>
       <p class="note">News articles are the publishers' copyright; the tracker takes facts from them, not text or pictures. The 2035 and 2038 dates come from news coverage.</p>
     </section>
   </details>
