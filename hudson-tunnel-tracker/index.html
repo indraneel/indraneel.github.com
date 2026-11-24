@@ -1749,7 +1749,7 @@ TT.config = {
   place: { lat: 40.76, lon: -74.01, timeZone: 'America/New_York' },
 
   // Draw order, back to front. Remove a name to hide that layer.
-  layers: ['sky', 'backdrop', 'geology', 'landcover', 'water', 'trees-behind', 'trains', 'buildings', 'station', 'trees', 'props', 'billboard', 'works', 'tunnel', 'tbm', 'roads', 'contracts', 'labels'],
+  layers: ['sky', 'backdrop', 'geology', 'landcover', 'water', 'trees-behind', 'trains', 'buildings', 'station', 'trees', 'billboard', 'works', 'props', 'tunnel', 'tbm', 'roads', 'contracts', 'labels'],
 
   // The look the page opens in, and the look every other one falls back to for keys it leaves out.
   defaultTheme: 'sketch',
@@ -2720,6 +2720,7 @@ TT.data.register('works', {
  *     boost    optional. Drawn config.objectBoost times real size, like the machine, so something small can be seen
  *     height   real height in feet; the sprite keeps its own shape, so this also sets its width
  *     on       'water' to float on the river; otherwise it stands on the ground
+ *     base     optional. The elevation it stands on, feet, instead of the ground (the launch box's floor)
  *     flip     true to draw it mirrored, facing west (a crane's boom points east unless flipped)
  *
  * The equipment marks work sites from the project sources: the Tonnelle Avenue launch site
@@ -2736,7 +2737,9 @@ TT.data.register('props', {
     units: 'feet'
   },
   items: [
-    { id: 'launch-crane', kind: 'crane', station: -300, height: 190 },
+    // In the launch box (data/works.js, -420 to 0, floor at -4 ft), west of the machines' trailing gear; about as tall as
+    // the shaft cranes, so it sits in proportion to the machines.
+    { id: 'launch-crane', kind: 'crane', station: -350, height: 80, base: -4 },
     { id: 'hcs-gantry', kind: 'headframe', station: 5350, height: 70 },
     { id: 'hcs-crane-w', kind: 'crane', station: 5240, height: 90 },
     { id: 'hcs-crane-e', kind: 'crane', station: 5465, height: 80, flip: true },
@@ -3121,7 +3124,7 @@ TT.data.register('contracts', {
  *
  * Shape:
  *   list: [{ text, station, elevation, kind }, ...]
- *     kind   place | ground | water | street | work | building. The style can treat each kind differently.
+ *     kind   place | ground | water | street | work. The style can treat each kind differently. (No building names: the owner left them out.)
  *
  * Machine name tags are added automatically and are not listed here. Contract names are drawn
  * by the contracts layer.
@@ -3154,15 +3157,6 @@ TT.data.register('labels', {
     { text: '12th Ave Shaft', station: 12465, elevation: 84, kind: 'work' },
     { text: 'Hudson Yards casing', station: 13780, elevation: 22, kind: 'work' },
 
-    { text: '15 Hudson Yards', station: 13402, elevation: 955, kind: 'building' },
-    { text: '35 HY', station: 13570, elevation: 1045, kind: 'building' },
-    { text: '55 HY', station: 13641, elevation: 820, kind: 'building' },
-    { text: '10 HY', station: 13900, elevation: 940, kind: 'building' },
-    { text: '30 Hudson Yards', station: 14054, elevation: 1335, kind: 'building' },
-    { text: 'Vessel', station: 13671, elevation: 200, kind: 'building' },
-    { text: '2 Manhattan West', station: 14951, elevation: 1010, kind: 'building' },
-    { text: 'Farley Building', station: 15572, elevation: 130, kind: 'building' },
-    { text: 'PENN 2', station: 16818, elevation: 495, kind: 'building' },
 
     { text: 'Penn Station', station: 16450, elevation: -45, kind: 'place' },
 
@@ -25987,6 +25981,7 @@ TT.layer({
  * LAYER: props
  * Things standing in the scene: cranes, the shaft gantries, the grouting barge, trees.
  * Each is a sprite drawn at its real height, keeping the sprite's own shape; flip mirrors it about its station.
+ * Drawn after the works (config.layers), so a crane standing in the launch box shows in front of it, as the machines do.
  *
  * Style keys:
  *   sprites: { <kind>: sprite name }   a kind without a sprite is not drawn
@@ -26008,7 +26003,7 @@ TT.layer({
         : null;
       const base = body
         ? body.surfaceElevation - p.height * (style.sink || 0)
-        : TT.profile.at(terrain.profile, p.station);
+        : p.base != null ? p.base : TT.profile.at(terrain.profile, p.station);
       const h = p.height * (p.boost ? TT.config.objectBoost || 1 : 1) * scale.ky, w = h * TT.sprites.aspect(name);
       const x = scale.x(p.station), g = TT.el('g', { 'data-prop': p.id, 'data-kind': p.kind }, c.g);
       if (p.flip) g.setAttribute('transform', 'translate(' + (2 * x).toFixed(2) + ',0) scale(-1,1)');
@@ -26917,14 +26912,14 @@ TT.layer({
 
     contracts: {
       lift: 34,
-      screenTop: 40,
-      width: 13,
-      tick: 16,
+      screenTop: 22,              // px: across the ruler's red tags, which sit over it (#tt-marks), as on the project's drawings
+      width: 11,
+      tick: 14,
       stroke: ink,
       colors: { palisades: '#2f8fb5', river: '#8a5aa8', manhattan: '#d9772b', 'hycc-3': '#d4a21f', 'hycc-1-2': '#3c8a6e' },
       futureDash: '10 7',
-      font: draft,
-      size: 17,
+      font: sans,                 // the ruler's own face (css/app.css .tt-range), smaller than the scene's hand lettering
+      size: 13,
       text: ink,
       halo: 'rgba(255, 255, 255, 0.85)'
     },
@@ -27027,8 +27022,7 @@ TT.layer({
         water: { fill: '#1f4f6b', halo: 'rgba(220, 235, 242, 0.8)' },
         ground: { size: 19 },
         street: { size: 15, italic: false, spacing: 0.5 },
-        work: { size: 16, italic: false, weight: 600, fill: '#5a3a22' },
-        building: { size: 15, italic: false, weight: 600, fill: '#3e5468' }
+        work: { size: 16, italic: false, weight: 600, fill: '#5a3a22' }
       },
       tag: { fill: '#c8502a', text: '#ffffff', size: 15 }
     }
@@ -27197,7 +27191,7 @@ TT.layer({
       colors: { palisades: '#7fd1ff', river: '#c7a4ff', manhattan: '#ffb072', 'hycc-3': '#ffd166', 'hycc-1-2': '#7fe0b5' },
       futureDash: '8 6',
       font: mono,
-      size: 15,
+      size: 12,
       text: line,
       halo: 'rgba(13, 39, 72, 0.8)'
     },
@@ -27276,8 +27270,7 @@ TT.layer({
         water: { fill: line },
         ground: { size: 16 },
         street: { size: 13 },
-        work: { size: 14, weight: 600, fill: '#ffd166' },
-        building: { size: 13, fill: '#9fbde6' }
+        work: { size: 14, weight: 600, fill: '#ffd166' }
       },
       tag: { fill: '#ffd166', text: '#0d2748', size: 14 }
     }
@@ -27469,7 +27462,7 @@ TT.layer({
       colors: { palisades: blue, river: '#6a4c93', manhattan: red, 'hycc-3': '#b8860b', 'hycc-1-2': '#2e7d5b' },
       futureDash: '8 4',
       font: plex,
-      size: 16,
+      size: 13,
       text: ink,
       halo: halo
     },
@@ -27541,8 +27534,7 @@ TT.layer({
         water: { fill: blue, italic: true },
         ground: { size: 16, italic: true, fill: '#4a5866' },
         street: { size: 14, spacing: 0.3 },
-        work: { size: 15, weight: 600, fill: red },
-        building: { size: 14, weight: 600, fill: '#4a5866' }
+        work: { size: 15, weight: 600, fill: red }
       },
       tag: { fill: ink, text: '#ffffff', size: 14 }
     }
@@ -28205,8 +28197,10 @@ TT.layer({
       if (k === 1) el.removeAttribute('transform');
       else el.setAttribute('transform', 'translate(' + x + ' ' + y + ') scale(' + (1 / k).toFixed(5) + ') translate(' + -x + ' ' + -y + ')');
     };
+    // Not the billboard's words: they are sized to its board and zoom with it (their lines carry their own x and y, so
+    // held about the text's missing anchor they flew off the board).
     TT.svg.querySelectorAll('text').forEach(function (t) {
-      if (!t.parentNode.hasAttribute('data-machine')) set(t, +t.getAttribute('x') || 0, +t.getAttribute('y') || 0);
+      if (!t.parentNode.hasAttribute('data-machine') && !t.closest('[data-billboard]')) set(t, +t.getAttribute('x') || 0, +t.getAttribute('y') || 0);
     });
     TT.svg.querySelectorAll('[data-machine] > rect').forEach(function (box) {
       const x = +box.getAttribute('x') + +box.getAttribute('width') / 2, y = +box.getAttribute('y') + +box.getAttribute('height');
