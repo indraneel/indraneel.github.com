@@ -916,21 +916,23 @@ html:not([data-map-stage="mini"]) #tt-viewport { left: var(--tt-map-w); }
   // second; the trains alone kept a still page about 15% busy. Held, they cost a frame only when the clock moves them.
   // known: each step still repaints the whole scene, one picture in one layer: about 12% of a core on a still page
   // with trains in view (Chrome, 2026-11). Fewer steps (style fps) or trains in their own svg would cut it.
-  const held = new Set();
+  const held = new Map();   // element: its animations, caught on the clock's first tick (asking each tick cost a restyle)
   let beat = null, lastBeat = 0;
   TT.holdToBeat = function (el, fps) {
-    held.add(el);
+    held.set(el, null);
     if (beat) return;
     lastBeat = performance.now();
     beat = setInterval(function () {
       const now = performance.now(), dt = now - lastBeat;
       lastBeat = now;
-      held.forEach(function (n) {
+      held.forEach(function (anims, n) {
         if (!n.isConnected) { held.delete(n); return; }
-        n.getAnimations().forEach(function (a) {
-          if (a.playState === 'running') a.pause();   // caught where it is, then moved on from there
-          else if (a.currentTime != null) a.currentTime += dt;
-        });
+        if (!anims) {   // caught where they are, then moved on from there
+          held.set(n, n.getAnimations());
+          held.get(n).forEach(function (a) { a.pause(); });
+          return;
+        }
+        anims.forEach(function (a) { if (a.playState === 'paused') a.currentTime += dt; });   // not one CSS has since cancelled (reduced motion)
       });
     }, 1000 / fps);
   };
@@ -1418,9 +1420,11 @@ html:not([data-map-stage="mini"]) #tt-viewport { left: var(--tt-map-w); }
    * sheet and tint on a canvas. The first ask returns null and ready(url) is called once the sheet is made: after the
    * sheet has loaded (Safari decodes them well after the first picture) and toBlob, which keeps the PNG encode off the
    * page's critical path, has encoded it. Null for good when the page cannot read its own images (opened from disk).
-   * Only the pictures that asked change then: the scene is not drawn again.
+   * Only the pictures that asked change then, all sheets' at once once the last is made: each change repainted the
+   * whole scene (about 70 ms in Chrome), so sheets arriving one by one cost a repaint each.
    */
   const images = {}, made = {}, waiting = {};
+  let making = 0, swaps = [];
   function load(href) {
     if (!href || images[href] || typeof Image === 'undefined') return;
     (images[href] = new Image()).src = href;
@@ -1433,12 +1437,17 @@ html:not([data-map-stage="mini"]) #tt-viewport { left: var(--tt-map-w); }
     if (!img) return null;
     const done = function (url) {
       made[key] = url;
-      if (url) waiting[key].forEach(function (f) { f(url); });
+      if (url) waiting[key].forEach(function (f) { swaps.push(function () { f(url); }); });
       delete waiting[key];
+      if (--making === 0) { const now = swaps; swaps = []; now.forEach(function (f) { f(); }); }
     };
     waiting[key] = ready ? [ready] : [];
+    making++;
     if (img.complete && img.naturalWidth) make(img, k, done);
-    else img.addEventListener('load', function () { make(img, k, done); }, { once: true });
+    else {
+      img.addEventListener('load', function () { make(img, k, done); }, { once: true });
+      img.addEventListener('error', function () { done(null); }, { once: true });
+    }
     return null;
   };
   function make(img, k, done) {
